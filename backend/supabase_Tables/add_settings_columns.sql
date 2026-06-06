@@ -1,0 +1,10 @@
+-- Add new settings columns to the shops table
+
+ALTER TABLE public.shops 
+ADD COLUMN IF NOT EXISTS description TEXT,
+ADD COLUMN IF NOT EXISTS cover_url TEXT,
+ADD COLUMN IF NOT EXISTS mon_hours BOOLEAN DEFAULT true,
+ADD COLUMN IF NOT EXISTS tue_hours BOOLEAN DEFAULT true,
+ADD COLUMN IF NOT EXISTS holiday_mode BOOLEAN DEFAULT false,
+ADD COLUMN IF NOT EXISTS accept_orders BOOLEAN DEFAULT true,
+ADD COLUMN IF NOT EXISTS auto_approval BOOLEAN DEFAULT false;
