@@ -1,0 +1,110 @@
+version: "2"
+type: frontend
+tech_stack:
+  - javascript
+  - react
+  - vite
+  - lucide-react
+  - supabase
+routes:
+  - path: /register
+    file: src/pages/RegisterLogin.jsx
+    auth_required: false
+    description: Owner login and registration page
+  - path: /shop-setup
+    file: src/pages/ShopDetails.jsx
+    auth_required: true
+    description: Initial shop profile creation page
+  - path: /dashboard
+    file: src/pages/Dashboard.jsx
+    auth_required: true
+    description: Shop statistics and feedback summary dashboard
+  - path: /menu-builder
+    file: src/pages/MenuBuilder.jsx
+    auth_required: true
+    description: Menu builder to add categories and items
+  - path: /qr-code
+    file: src/pages/QRCodeGeneration.jsx
+    auth_required: true
+    description: QR code generation and table management
+  - path: /orders
+    file: src/pages/Orders.jsx
+    auth_required: true
+    description: Active order management with status updates
+  - path: /history
+    file: src/pages/BillHistory.jsx
+    auth_required: true
+    description: Order billing history and print invoice page
+  - path: /settings
+    file: src/pages/Settings.jsx
+    auth_required: true
+    description: Shop settings, language settings, and delete account
+  - path: /menu/:shopId
+    file: src/pages/CustomerMenu.jsx
+    auth_required: false
+    description: Customer ordering menu based on QR code scan
+features:
+  - name: Shop Registration
+    description: Create new shop account
+    files:
+      - src/pages/ShopDetails.jsx
+    entry_route: /shop-setup
+    user_interactions:
+      - Fill shop name input field
+      - Fill owner name input field
+      - Fill mobile and address
+      - Select logo image file
+      - Click submit to create shop
+    api_calls:
+      - method: INSERT
+        endpoint: shops
+    auth_required: true
+  - name: Customer Menu Viewing
+    description: Display cafe menu and categories
+    files:
+      - src/pages/CustomerMenu.jsx
+    entry_route: /menu/:shopId
+    user_interactions:
+      - Scan table QR code to open menu page
+      - Select a menu category tab to filter items
+      - Search items using search bar
+      - Click Call Waiter button to call for service
+    api_calls:
+      - method: SELECT
+        endpoint: shops
+      - method: SELECT
+        endpoint: categories
+      - method: SELECT
+        endpoint: items
+      - method: INSERT
+        endpoint: notifications
+    auth_required: false
+  - name: Order Placement
+    description: Add items to cart and check out
+    files:
+      - src/pages/CustomerMenu.jsx
+    entry_route: /menu/:shopId
+    user_interactions:
+      - Click Add on menu items to add to cart
+      - Click Cart button to view items in cart
+      - Add special notes in text area
+      - Click Place Order button
+    api_calls:
+      - method: INSERT
+        endpoint: orders
+      - method: INSERT
+        endpoint: order_items
+    auth_required: false
+  - name: Kitchen Order Control
+    description: Kitchen dashboard updating order status
+    files:
+      - src/pages/Orders.jsx
+    entry_route: /orders
+    user_interactions:
+      - View list of active orders
+      - Click Accept or Preparing or Ready on an order card
+    api_calls:
+      - method: UPDATE
+        endpoint: orders
+    auth_required: true
+known_limitations: []
