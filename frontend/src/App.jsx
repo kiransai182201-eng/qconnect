@@ -41,10 +41,10 @@ function App() {
       document.documentElement.classList.remove('light-mode');
     }
 
-    // 2. Fetch from Supabase to sync across devices if logged in
     const syncTheme = async () => {
       try {
-        const { data: { user } } = await supabase.auth.getUser();
+        const { data: { session } } = await supabase.auth.getSession();
+        const user = session?.user;
         if (!user) return;
         
         const { data: shops } = await supabase.from('shops').select('theme_color').eq('user_id', user.id).limit(1);

@@ -94,7 +94,8 @@ const OwnerLayout = ({ activeTab }) => {
 
     const fetchData = async () => {
       try {
-        const { data: { user: authUser } } = await supabase.auth.getUser();
+        const { data: { session } } = await supabase.auth.getSession();
+        const authUser = session?.user;
         if (!isMounted) return;
         if (!authUser) {
           navigate('/register');

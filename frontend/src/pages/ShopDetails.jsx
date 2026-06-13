@@ -29,23 +29,30 @@ const ShopDetails = () => {
 
   useEffect(() => {
     const checkUser = async () => {
-      const { data: { user } } = await supabase.auth.getUser();
+      const { data: { session } } = await supabase.auth.getSession();
+      const user = session?.user;
       if (!user) {
         navigate('/register');
-      } else {
-        setUserId(user.id);
-        
-        // Check if shop already exists
-        const { data: shops } = await supabase.from('shops').select('id').eq('user_id', user.id).limit(1);
-        if (shops && shops.length > 0) {
-          navigate('/dashboard');
-          return;
-        }
+        return;
+      }
+      
+      setUserId(user.id);
+      
+      // Clean up the OAuth access_token from the URL hash for security and to resolve browser warnings
+      if (window.location.hash && window.location.hash.includes('access_token')) {
+        window.history.replaceState(null, '', window.location.pathname);
+      }
+      
+      // Check if shop already exists
+      const { data: shops } = await supabase.from('shops').select('id').eq('user_id', user.id).limit(1);
+      if (shops && shops.length > 0) {
+        navigate('/dashboard');
+        return;
+      }
 
-        // Pre-fill owner name if available from Google Auth metadata
-        if (user.user_metadata?.full_name) {
-          setOwnerName(user.user_metadata.full_name);
-        }
+      // Pre-fill owner name if available from Google Auth metadata
+      if (user.user_metadata?.full_name) {
+        setOwnerName(user.user_metadata.full_name);
       }
     };
     checkUser();
