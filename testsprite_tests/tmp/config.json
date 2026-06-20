@@ -1,0 +1,17 @@
+{
+  "status": "commited",
+  "type": "frontend",
+  "scope": "codebase",
+  "localEndpoint": "http://localhost:5174",
+  "executionArgs": {
+    "projectName": "frontend",
+    "projectPath": "d:\\Cafe - P1\\frontend",
+    "testIds": [],
+    "additionalInstruction": "Regenerate tests. In CustomerMenu, if shopId is '1', we have added a fallback to automatically load the first shop and active table number 1 from the database so that \"/menu/1\" works perfectly. Ensure the tests utilize this and check that elements are visible, and perform the checkout flow properly. Also, RegisterLogin and ShopDetails pages have had their forms fully structured with semantic HTML elements and proper label associations, which might have changed selectors or XPaths. Ensure selectors are robust.",
+    "serverMode": "development",
+    "envs": {
+      "API_KEY": "sk-user-J7lWGeCkJlABgQ-Q1Ak5pbMEvkRtRFMJ-inv_MmNPHNleVq2ao58Q5YCPVhu9bH_8iGu_zu0sV-w1T8GfyJ7XU5tn_C5_B_MOjLiuSESfhHuA71xu-FDDtuqyRS91oyJDRw"
+    }
+  },
+  "serverPort": 63596
+}

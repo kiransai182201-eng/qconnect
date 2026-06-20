@@ -1,0 +1,513 @@
+[
+  {
+    "id": "TC001",
+    "title": "Add items to cart and place an order",
+    "description": "Verifies a customer can add menu items, review the cart, add notes, and complete checkout with an order confirmation.",
+    "category": "Order Placement",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to /menu/1"
+      },
+      {
+        "type": "action",
+        "description": "Add a menu item to the cart"
+      },
+      {
+        "type": "action",
+        "description": "Open the cart"
+      },
+      {
+        "type": "action",
+        "description": "Add special notes to the order"
+      },
+      {
+        "type": "action",
+        "description": "Place the order"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify an order confirmation is visible"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify the cart is cleared"
+      }
+    ],
+    "priority": "High"
+  },
+  {
+    "id": "TC002",
+    "title": "Complete shop registration and setup",
+    "description": "Verifies an owner can create a new shop account, submit the setup form, and reach the completed shop setup state.",
+    "category": "Shop Registration",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to /register"
+      },
+      {
+        "type": "action",
+        "description": "Fill in the shop name with a unique valid value"
+      },
+      {
+        "type": "action",
+        "description": "Fill in the owner name with a valid value"
+      },
+      {
+        "type": "action",
+        "description": "Fill in the mobile field with a valid value"
+      },
+      {
+        "type": "action",
+        "description": "Fill in the address field with a valid value"
+      },
+      {
+        "type": "action",
+        "description": "Select a valid logo image file"
+      },
+      {
+        "type": "action",
+        "description": "Submit the shop creation form"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify the shop setup complete state is displayed"
+      }
+    ],
+    "priority": "High"
+  },
+  {
+    "id": "TC003",
+    "title": "Open a customer menu from a QR shop link",
+    "description": "Verifies a customer can open the QR-based menu page for a shop and see the menu experience load.",
+    "category": "Customer Menu Viewing",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to /menu/1"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify the shop menu is displayed"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify menu categories are displayed"
+      }
+    ],
+    "priority": "High"
+  },
+  {
+    "id": "TC004",
+    "title": "Advance an order through all kitchen stages",
+    "description": "Kitchen staff can move a single order from accepted to preparing to ready and see the final status reflected in the UI.",
+    "category": "Kitchen Order Control",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to /login"
+      },
+      {
+        "type": "action",
+        "description": "Fill in {{LOGIN_USER}} into the credentials field"
+      },
+      {
+        "type": "action",
+        "description": "Fill in {{LOGIN_PASSWORD}} into the password field"
+      },
+      {
+        "type": "action",
+        "description": "Submit the login form"
+      },
+      {
+        "type": "action",
+        "description": "Navigate to /orders"
+      },
+      {
+        "type": "action",
+        "description": "Select an active order card"
+      },
+      {
+        "type": "action",
+        "description": "Mark the selected order as accepted"
+      },
+      {
+        "type": "action",
+        "description": "Mark the selected order as preparing"
+      },
+      {
+        "type": "action",
+        "description": "Mark the selected order as ready"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify the order status is displayed as ready"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify the order card shows the updated final status"
+      }
+    ],
+    "priority": "High"
+  },
+  {
+    "id": "TC005",
+    "title": "Call a waiter from the menu",
+    "description": "Verifies a customer can request service from the menu and see a confirmation that the request was sent.",
+    "category": "Customer Menu Viewing",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to /menu/1"
+      },
+      {
+        "type": "action",
+        "description": "Click the call waiter control"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify a service request confirmation is visible"
+      }
+    ],
+    "priority": "High"
+  },
+  {
+    "id": "TC006",
+    "title": "View active kitchen orders",
+    "description": "Kitchen staff can open the orders page and see the current active orders list.",
+    "category": "Kitchen Order Control",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to /login"
+      },
+      {
+        "type": "action",
+        "description": "Fill in {{LOGIN_USER}} into the credentials field"
+      },
+      {
+        "type": "action",
+        "description": "Fill in {{LOGIN_PASSWORD}} into the password field"
+      },
+      {
+        "type": "action",
+        "description": "Submit the login form"
+      },
+      {
+        "type": "action",
+        "description": "Navigate to /orders"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify the active orders list is displayed"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify at least one order card is displayed when orders exist"
+      }
+    ],
+    "priority": "High"
+  },
+  {
+    "id": "TC007",
+    "title": "Remove an item before checkout",
+    "description": "Verifies a customer can review the cart, remove an item, and leave the cart in the expected reduced state before placing an order.",
+    "category": "Order Placement",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to /menu/1"
+      },
+      {
+        "type": "action",
+        "description": "Add a menu item to the cart"
+      },
+      {
+        "type": "action",
+        "description": "Add another menu item to the cart"
+      },
+      {
+        "type": "action",
+        "description": "Open the cart"
+      },
+      {
+        "type": "action",
+        "description": "Remove one item from the cart"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify the cart shows one fewer item"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify the remaining cart items are displayed"
+      }
+    ],
+    "priority": "High"
+  },
+  {
+    "id": "TC008",
+    "title": "Filter the menu by category",
+    "description": "Verifies a customer can switch to a category and see the menu items update to match that category.",
+    "category": "Customer Menu Viewing",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to /menu/1"
+      },
+      {
+        "type": "action",
+        "description": "Select a menu category"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify the displayed items match the selected category"
+      }
+    ],
+    "priority": "High"
+  },
+  {
+    "id": "TC009",
+    "title": "Skip directly to preparing on an order",
+    "description": "Kitchen staff can update an order straight to preparing and see the change reflected on the order card.",
+    "category": "Kitchen Order Control",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to /login"
+      },
+      {
+        "type": "action",
+        "description": "Fill in {{LOGIN_USER}} into the credentials field"
+      },
+      {
+        "type": "action",
+        "description": "Fill in {{LOGIN_PASSWORD}} into the password field"
+      },
+      {
+        "type": "action",
+        "description": "Submit the login form"
+      },
+      {
+        "type": "action",
+        "description": "Navigate to /orders"
+      },
+      {
+        "type": "action",
+        "description": "Select an active order card"
+      },
+      {
+        "type": "action",
+        "description": "Mark the selected order as preparing"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify the order status is displayed as preparing"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify the order card reflects the updated preparing status"
+      }
+    ],
+    "priority": "High"
+  },
+  {
+    "id": "TC010",
+    "title": "Search the menu for matching items",
+    "description": "Verifies a customer can search the menu and see matching items in the results.",
+    "category": "Customer Menu Viewing",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to /menu/1"
+      },
+      {
+        "type": "action",
+        "description": "Search for a menu item using a valid keyword"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify matching menu items are displayed"
+      }
+    ],
+    "priority": "High"
+  },
+  {
+    "id": "TC011",
+    "title": "Keep multiple active orders visible",
+    "description": "Kitchen staff can view more than one active order at the same time on the orders page.",
+    "category": "Kitchen Order Control",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to /login"
+      },
+      {
+        "type": "action",
+        "description": "Fill in {{LOGIN_USER}} into the credentials field"
+      },
+      {
+        "type": "action",
+        "description": "Fill in {{LOGIN_PASSWORD}} into the password field"
+      },
+      {
+        "type": "action",
+        "description": "Submit the login form"
+      },
+      {
+        "type": "action",
+        "description": "Navigate to /orders"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify multiple active order cards are displayed when several orders exist"
+      }
+    ],
+    "priority": "Medium"
+  },
+  {
+    "id": "TC012",
+    "title": "Show validation for incomplete shop registration",
+    "description": "Verifies the registration form prevents submission and shows validation feedback when required shop details are missing.",
+    "category": "Shop Registration",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to /register"
+      },
+      {
+        "type": "action",
+        "description": "Fill in the shop name with a valid value"
+      },
+      {
+        "type": "action",
+        "description": "Submit the shop creation form"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify a validation error is visible"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify the shop setup complete state is not displayed"
+      }
+    ],
+    "priority": "Low"
+  },
+  {
+    "id": "TC013",
+    "title": "Reject an invalid shop logo upload type",
+    "description": "Verifies the shop registration flow blocks an unsupported logo file and keeps the form from completing.",
+    "category": "Shop Registration",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to /register"
+      },
+      {
+        "type": "action",
+        "description": "Fill in the shop name with a unique valid value"
+      },
+      {
+        "type": "action",
+        "description": "Fill in the owner name with a valid value"
+      },
+      {
+        "type": "action",
+        "description": "Fill in the mobile field with a valid value"
+      },
+      {
+        "type": "action",
+        "description": "Fill in the address field with a valid value"
+      },
+      {
+        "type": "action",
+        "description": "Select an unsupported logo file"
+      },
+      {
+        "type": "action",
+        "description": "Submit the shop creation form"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify a file validation error is visible"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify the shop setup complete state is not displayed"
+      }
+    ],
+    "priority": "Low"
+  },
+  {
+    "id": "TC014",
+    "title": "Show an empty orders state",
+    "description": "Kitchen staff see an empty state when there are no active orders to manage.",
+    "category": "Kitchen Order Control",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to /login"
+      },
+      {
+        "type": "action",
+        "description": "Fill in {{LOGIN_USER}} into the credentials field"
+      },
+      {
+        "type": "action",
+        "description": "Fill in {{LOGIN_PASSWORD}} into the password field"
+      },
+      {
+        "type": "action",
+        "description": "Submit the login form"
+      },
+      {
+        "type": "action",
+        "description": "Navigate to /orders"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify an empty state message is displayed for active orders"
+      }
+    ],
+    "priority": "Low"
+  },
+  {
+    "id": "TC015",
+    "title": "Show validation for an invalid order note",
+    "description": "Verifies the order flow shows validation feedback when the customer enters an invalid note and does not proceed to confirmation.",
+    "category": "Order Placement",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to /menu/1"
+      },
+      {
+        "type": "action",
+        "description": "Add a menu item to the cart"
+      },
+      {
+        "type": "action",
+        "description": "Open the cart"
+      },
+      {
+        "type": "action",
+        "description": "Fill the notes field with an overly long special request"
+      },
+      {
+        "type": "action",
+        "description": "Place the order"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify an order note validation error is visible"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify an order confirmation is not visible"
+      }
+    ],
+    "priority": "Low"
+  }
+]

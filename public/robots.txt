@@ -1,0 +1,16 @@
+# QConnect Smart Cafe - robots.txt
+User-agent: *
+Disallow: /dashboard
+Disallow: /orders
+Disallow: /menu-builder
+Disallow: /qr-code
+Disallow: /settings
+Disallow: /history
+Disallow: /feedback
+Disallow: /shop-setup
+Disallow: /register
+
+# Allow public menu pages
+Allow: /menu/
+
+Sitemap: https://qconnect.menu/sitemap.xml
