@@ -240,28 +240,23 @@
 
 /* 2-Column Menu Grid */
 .customer-menu-grid {
-  display: grid;
-  grid-template-columns: repeat(2, 1fr); /* 2 Columns on mobile! */
-  gap: 0.75rem;
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
   padding: 0 1rem;
 }
 
-@media (min-width: 768px) {
-  .customer-menu-grid {
-    grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
-    gap: 1.5rem;
-  }
-}
-
-/* Card Style (Vertical layout) */
+/* Card Style (Row layout) */
 .customer-item-card {
   display: flex;
-  flex-direction: column;
+  flex-direction: row;
+  align-items: center;
+  gap: 1rem;
   background-color: var(--card-bg);
   border: 1px solid var(--card-border);
   border-radius: 20px;
   box-shadow: var(--card-shadow);
-  padding: 0.75rem;
+  padding: 1rem;
   position: relative;
   overflow: hidden;
   transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
