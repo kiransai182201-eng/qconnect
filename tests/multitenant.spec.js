@@ -6,12 +6,12 @@ test.describe('Multi-tenant Separation & Mobile Emulation spec', () => {
     // Navigate to Shop 1
     await page.goto('/menu/1?table=1&mock=true');
     await expect(page.locator('.customer-shop-title')).toContainText('Mock Cafe');
-    await expect(page.locator('text=Margherita Pizza')).toBeVisible();
+    await expect(page.locator('.customer-item-title', { hasText: 'Margherita Pizza' })).toBeVisible();
 
     // Now visit an invalid shop/mock setup with no menu published
     await page.goto('/menu/non-existent-shop-slug?mock=true');
     await expect(page.locator('text=Menu Unavailable')).toBeVisible();
-    await expect(page.locator('text=Margherita Pizza')).not.toBeVisible();
+    await expect(page.locator('.customer-item-title', { hasText: 'Margherita Pizza' })).not.toBeVisible();
   });
 
   test('should adjust layout structure on mobile screen viewports', async ({ page }) => {

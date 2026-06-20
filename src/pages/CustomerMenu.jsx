@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useParams, useSearchParams } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
 import { useLanguage } from '../contexts/LanguageContext';
-import { Bell, MessageSquare, X, CheckCircle, Star } from 'lucide-react';
+import { Bell, MessageSquare, X, CheckCircle, Star, AlertTriangle } from 'lucide-react';
 import '../customer-menu.css';
 
 import MenuHeader from '../components/Customer/MenuHeader';
@@ -93,6 +93,9 @@ const CustomerMenu = () => {
   const [feedbackMessage, setFeedbackMessage] = useState('');
   const [feedbackSuccess, setFeedbackSuccess] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
+
+  // Unavailable items modal state
+  const [unavailableItems, setUnavailableItems] = useState([]);
 
   const isUUID = (str) => /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(str);
 
@@ -201,6 +204,14 @@ const CustomerMenu = () => {
           }
         } else if (payload.eventType === 'UPDATE') {
           setItems(prev => prev.map(item => item.id === payload.new.id ? { ...item, ...payload.new } : item));
+          // Auto-remove from cart if item became unavailable
+          if (payload.new.is_available === false) {
+            setCart(prev => {
+              const newCart = { ...prev };
+              delete newCart[payload.new.id];
+              return newCart;
+            });
+          }
         } else if (payload.eventType === 'DELETE') {
           setItems(prev => prev.filter(item => item.id !== payload.old.id));
           setCart(prev => {
@@ -289,8 +300,21 @@ const CustomerMenu = () => {
     });
 
     if (orderError || !orderData) {
-      alert("Failed to place order securely. Please try again.");
+      alert("Failed to place order. Please try again.");
       console.error(orderError);
+      setIsPlacingOrder(false);
+      return;
+    }
+
+    // Handle unavailable items response from backend
+    if (orderData.error && orderData.error_type === 'items_unavailable') {
+      setUnavailableItems(orderData.unavailable_items || []);
+      // Refresh items to sync availability state
+      const { data: freshItems } = await supabase
+        .from('items')
+        .select('*, categories!inner(shop_id)')
+        .eq('categories.shop_id', shop.id);
+      if (freshItems) setItems(freshItems);
       setIsPlacingOrder(false);
       return;
     }
@@ -327,7 +351,12 @@ const CustomerMenu = () => {
 
     setIsCallingWaiter(true);
     const { error } = await supabase.from('notifications').insert([
-      { shop_id: shop.id, type: 'waiter_call', table_number: tNum }
+      { 
+        shop_id: shop.id, 
+        type: 'waiter', 
+        title: 'Waiter Request', 
+        message: `Table ${tNum} requested a waiter.` 
+      }
     ]);
     setIsCallingWaiter(false);
 
@@ -547,6 +576,109 @@ const CustomerMenu = () => {
                   </button>
                 </form>
               )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Unavailable Items Modal */}
+      {unavailableItems.length > 0 && (
+        <div className="customer-modal-backdrop">
+          <div className="customer-modal">
+            <div className="customer-modal-header">
+              <h3 style={{ margin: 0, fontWeight: '800', color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <AlertTriangle size={20} color="#eab308" />
+                Items Unavailable
+              </h3>
+              <button 
+                aria-label="Close unavailability alert"
+                onClick={() => setUnavailableItems([])} 
+                style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-secondary)' }}
+              >
+                <X size={22} />
+              </button>
+            </div>
+            <div style={{ padding: '1.5rem 1.75rem' }}>
+              <div style={{ 
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                width: '72px', height: '72px', borderRadius: '50%',
+                backgroundColor: 'rgba(234, 179, 8, 0.1)',
+                margin: '0 auto 1.25rem auto',
+                border: '1px solid rgba(234, 179, 8, 0.15)'
+              }}>
+                <span style={{ fontSize: '2rem' }}>😔</span>
+              </div>
+              <p style={{ textAlign: 'center', fontSize: '0.92rem', color: 'var(--text-secondary)', margin: '0 0 1.25rem 0', lineHeight: '1.55' }}>
+                Some items in your cart are no longer available.
+              </p>
+              <div style={{
+                backgroundColor: 'rgba(234, 179, 8, 0.06)',
+                border: '1px solid rgba(234, 179, 8, 0.12)',
+                borderRadius: '14px',
+                padding: '1rem 1.25rem',
+                marginBottom: '1.5rem'
+              }}>
+                <p style={{ margin: '0 0 0.5rem 0', fontSize: '0.78rem', fontWeight: '700', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Unavailable:</p>
+                {unavailableItems.map((item, idx) => (
+                  <div key={idx} style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '6px 0', borderTop: idx > 0 ? '1px solid rgba(234, 179, 8, 0.08)' : 'none' }}>
+                    <span style={{ color: '#eab308', fontSize: '0.8rem' }}>•</span>
+                    <span style={{ fontWeight: '700', fontSize: '0.9rem', color: 'var(--text-primary)' }}>{item.name}</span>
+                  </div>
+                ))}
+              </div>
+              <p style={{ textAlign: 'center', fontSize: '0.82rem', color: 'var(--text-secondary)', margin: '0 0 1.5rem 0' }}>
+                Please remove {unavailableItems.length === 1 ? 'this item' : 'these items'} or choose alternatives before placing your order.
+              </p>
+              <div style={{ display: 'flex', gap: '0.75rem' }}>
+                <button
+                  onClick={() => {
+                    // Auto-remove all unavailable items from cart
+                    setCart(prev => {
+                      const newCart = { ...prev };
+                      unavailableItems.forEach(item => delete newCart[item.item_id]);
+                      return newCart;
+                    });
+                    setUnavailableItems([]);
+                  }}
+                  style={{
+                    flex: 1,
+                    padding: '0.85rem',
+                    borderRadius: '14px',
+                    border: '1px solid var(--pill-border)',
+                    backgroundColor: 'transparent',
+                    color: 'var(--text-primary)',
+                    fontWeight: '700',
+                    fontSize: '0.88rem',
+                    cursor: 'pointer',
+                    fontFamily: 'var(--font-body)',
+                    transition: 'all 0.2s'
+                  }}
+                >
+                  Remove Items
+                </button>
+                <button
+                  onClick={() => {
+                    setUnavailableItems([]);
+                    setIsCartOpen(false);
+                  }}
+                  style={{
+                    flex: 1,
+                    padding: '0.85rem',
+                    borderRadius: '14px',
+                    border: 'none',
+                    backgroundColor: 'var(--color-accent)',
+                    color: 'white',
+                    fontWeight: '700',
+                    fontSize: '0.88rem',
+                    cursor: 'pointer',
+                    fontFamily: 'var(--font-body)',
+                    boxShadow: '0 4px 12px rgba(var(--color-accent-rgb), 0.25)',
+                    transition: 'all 0.2s'
+                  }}
+                >
+                  Browse Menu
+                </button>
+              </div>
             </div>
           </div>
         </div>

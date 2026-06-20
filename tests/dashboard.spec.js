@@ -23,7 +23,7 @@ test.describe('Owner Management Dashboard & Settings spec', () => {
     await page.goto('/settings?mock=true');
     
     // Check settings section exists
-    await expect(page.locator('text=Theme Settings')).toBeVisible();
+    await expect(page.locator('h2', { hasText: 'Theme Settings' })).toBeVisible();
     
     // Switch to dark mode
     const darkModeBtn = page.locator('text=Dark Mode');

@@ -11,8 +11,11 @@ const BillHistory = () => {
   const [loading, setLoading] = useState(true);
   const [dateFilter, setDateFilter] = useState(() => {
     const today = new Date();
-    return today.toISOString().split('T')[0];
-  }); // YYYY-MM-DD format
+    const yyyy = today.getFullYear();
+    const mm = String(today.getMonth() + 1).padStart(2, '0');
+    const dd = String(today.getDate()).padStart(2, '0');
+    return `${yyyy}-${mm}-${dd}`;
+  }); // YYYY-MM-DD local format
   const [expandedBillId, setExpandedBillId] = useState(null);
   const { t } = useLanguage();
 
@@ -30,10 +33,9 @@ const BillHistory = () => {
           .order('created_at', { ascending: false });
 
         if (dateFilter) {
-          const startOfDay = new Date(dateFilter);
-          startOfDay.setHours(0, 0, 0, 0);
-          const endOfDay = new Date(dateFilter);
-          endOfDay.setHours(23, 59, 59, 999);
+          const [year, month, day] = dateFilter.split('-').map(Number);
+          const startOfDay = new Date(year, month - 1, day, 0, 0, 0, 0);
+          const endOfDay = new Date(year, month - 1, day, 23, 59, 59, 999);
           
           query = query
             .gte('created_at', startOfDay.toISOString())
@@ -54,14 +56,35 @@ const BillHistory = () => {
       }
     };
 
-    if (dateFilter) {
-      fetchBills();
-    }
+    fetchBills();
   }, [dateFilter, shop]);
+
+  const formatDate = (dateStr) => {
+    const d = new Date(dateStr);
+    const dd = String(d.getDate()).padStart(2, '0');
+    const mm = String(d.getMonth() + 1).padStart(2, '0');
+    const yyyy = d.getFullYear();
+    return `${dd}/${mm}/${yyyy}`;
+  };
+
+  const strftime = (dateStr) => {
+    const d = new Date(dateStr);
+    const dd = String(d.getDate()).padStart(2, '0');
+    const mm = String(d.getMonth() + 1).padStart(2, '0');
+    const yyyy = d.getFullYear();
+    let hours = d.getHours();
+    const minutes = String(d.getMinutes()).padStart(2, '0');
+    const seconds = String(d.getSeconds()).padStart(2, '0');
+    const ampm = hours >= 12 ? 'PM' : 'AM';
+    hours = hours % 12;
+    hours = hours ? hours : 12;
+    const hh = String(hours).padStart(2, '0');
+    return `${dd}/${mm}/${yyyy} ${hh}:${minutes}:${seconds} ${ampm}`;
+  };
 
   // Group bills by date
   const groupedBills = bills.reduce((acc, bill) => {
-    const date = new Date(bill.created_at).toLocaleDateString(undefined, { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
+    const date = formatDate(bill.created_at);
     if (!acc[date]) {
       acc[date] = [];
     }
@@ -82,8 +105,7 @@ const BillHistory = () => {
       `╚══════════════════════════════╝`,
       ``,
       `Order: ${bill.order_number || 'N/A'}`,
-      `Date:  ${new Date(bill.created_at).toLocaleDateString()}`,
-      `Time:  ${new Date(bill.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`,
+      `Date/Time: ${strftime(bill.created_at)}`,
       `Table: ${bill.table_number || 'N/A'}`,
       `──────────────────────────────`,
       `ITEMS`,
@@ -178,7 +200,7 @@ const BillHistory = () => {
                         <div style={{ display: 'flex', alignItems: 'center', gap: '12px', fontSize: '0.85rem', color: 'var(--color-text-muted)' }}>
                           <span>Table {bill.table_number}</span>
                           <span>•</span>
-                          <span>{new Date(bill.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
+                          <span>{strftime(bill.created_at)}</span>
                         </div>
                       </div>
                       
