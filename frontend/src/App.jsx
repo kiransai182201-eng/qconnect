@@ -4,8 +4,10 @@ import { supabase } from './lib/supabase';
 import { LanguageProvider } from './contexts/LanguageContext';
 import OwnerLayout from './components/OwnerLayout';
 import ErrorBoundary from './components/ErrorBoundary';
+import CustomCursor from './components/CustomCursor';
 
 // Code-splitting routes for faster initial page load
+const LandingPage = React.lazy(() => import('./pages/LandingPage'));
 const RegisterLogin = React.lazy(() => import('./pages/RegisterLogin'));
 const ShopDetails = React.lazy(() => import('./pages/ShopDetails'));
 const QRCodeGeneration = React.lazy(() => import('./pages/QRCodeGeneration'));
@@ -16,6 +18,10 @@ const Orders = React.lazy(() => import('./pages/Orders'));
 const Settings = React.lazy(() => import('./pages/Settings'));
 const BillHistory = React.lazy(() => import('./pages/BillHistory'));
 const Feedback = React.lazy(() => import('./pages/Feedback'));
+const PrivacyPolicy = React.lazy(() => import('./pages/PrivacyPolicy'));
+const Terms = React.lazy(() => import('./pages/Terms'));
+const About = React.lazy(() => import('./pages/About'));
+const Contact = React.lazy(() => import('./pages/Contact'));
 
 // Fast loading fallback
 const Loader = () => (
@@ -72,12 +78,19 @@ function App() {
     <ErrorBoundary>
       <LanguageProvider>
         <Router>
+          <CustomCursor />
           <Suspense fallback={<Loader />}>
             <Routes>
-              <Route path="/" element={<Navigate to="/dashboard" replace />} />
+              <Route path="/" element={<LandingPage />} />
               <Route path="/register" element={<RegisterLogin />} />
               <Route path="/shop-setup" element={<ShopDetails />} />
               <Route path="/menu/:shopId" element={<CustomerMenu />} />
+              
+              {/* Public Informational / Legal pages */}
+              <Route path="/privacy" element={<PrivacyPolicy />} />
+              <Route path="/terms" element={<Terms />} />
+              <Route path="/about" element={<About />} />
+              <Route path="/contact" element={<Contact />} />
               
               {/* Owner Layout Persistent Route Group */}
               <Route element={<OwnerLayout />}>

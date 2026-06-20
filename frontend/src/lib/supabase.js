@@ -1,7 +1,7 @@
 import { createClient } from '@supabase/supabase-js';
 
 const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
-const supabaseKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
+const supabaseKey = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY || import.meta.env.VITE_SUPABASE_ANON_KEY;
 
 const finalUrl = supabaseUrl || 'https://placeholder-never-use.supabase.co';
 const finalKey = supabaseKey || 'placeholder-never-use-anon-key';
@@ -86,14 +86,38 @@ const saveMockDB = (db) => {
   localStorage.setItem(MOCK_DB_KEY, JSON.stringify(db));
 };
 
+// Cross-tab broadcast key
+const MOCK_BROADCAST_KEY = 'supabase_mock_broadcast';
+
 const broadcastMockChange = (tableName, eventType, newRecord, oldRecord) => {
-  if (typeof window === 'undefined' || !window.__supabase_channels) return;
+  if (typeof window === 'undefined') return;
   
   const payload = {
     eventType,
     new: newRecord,
     old: oldRecord
   };
+
+  // Write cross-tab broadcast event to localStorage so other tabs can pick it up
+  try {
+    localStorage.setItem(MOCK_BROADCAST_KEY, JSON.stringify({
+      tableName,
+      eventType,
+      newRecord,
+      oldRecord,
+      timestamp: Date.now()
+    }));
+  } catch (e) {
+    // Ignore storage errors
+  }
+
+  // Dispatch to channels in THIS tab
+  _dispatchToLocalChannels(tableName, eventType, payload, newRecord, oldRecord);
+};
+
+// Shared dispatch logic used by both local broadcasts and cross-tab storage events
+const _dispatchToLocalChannels = (tableName, eventType, payload, newRecord, oldRecord) => {
+  if (!window.__supabase_channels) return;
 
   // 1. Dispatch to customer-order-ID channels
   if (tableName === 'orders' && (eventType === 'UPDATE' || eventType === 'DELETE')) {
@@ -154,6 +178,21 @@ const broadcastMockChange = (tableName, eventType, newRecord, oldRecord) => {
   }
 };
 
+// Listen for cross-tab broadcasts via localStorage 'storage' events
+if (typeof window !== 'undefined') {
+  window.addEventListener('storage', (e) => {
+    if (e.key !== MOCK_BROADCAST_KEY || !e.newValue) return;
+    try {
+      const { tableName, eventType, newRecord, oldRecord } = JSON.parse(e.newValue);
+      const payload = { eventType, new: newRecord, old: oldRecord };
+      _dispatchToLocalChannels(tableName, eventType, payload, newRecord, oldRecord);
+    } catch (err) {
+      // Ignore parse errors
+    }
+  });
+}
+
+
 class MockQueryBuilder {
   constructor(tableName) {
     this.tableName = tableName;
@@ -163,10 +202,18 @@ class MockQueryBuilder {
     this.isMaybeSingle = false;
     this.operation = 'select';
     this.payload = null;
+    this.selectAfter = false;
   }
 
-  select() {
-    this.operation = 'select';
+  select(selectArgs) {
+    // If select() is called after insert/update (chaining pattern like .insert().select()),
+    // don't overwrite the operation — just flag that we want data returned.
+    if (this.operation === 'insert' || this.operation === 'update') {
+      this.selectAfter = true;
+    } else {
+      this.operation = 'select';
+    }
+    this.selectArgs = selectArgs || '*';
     return this;
   }
 
@@ -241,6 +288,59 @@ class MockQueryBuilder {
     return this;
   }
 
+  // Resolves relational patterns in selectArgs like 'order_items(*)', 'shops(*)'
+  _resolveRelations(rows, db) {
+    if (!this.selectArgs || this.selectArgs === '*') return rows;
+
+    // Parse relational patterns: table_name(*) or table_name!inner(columns)
+    const relationPattern = /(\w+)(?:!\w+)?\([^)]*\)/g;
+    let match;
+    const relations = [];
+    while ((match = relationPattern.exec(this.selectArgs)) !== null) {
+      relations.push(match[1]); // e.g. 'order_items', 'shops', 'categories'
+    }
+    if (relations.length === 0) return rows;
+
+    return rows.map(row => {
+      const enrichedRow = { ...row };
+      for (const relTable of relations) {
+        const relData = db[relTable] || [];
+        // Convention 1: child table references parent via <singular_parent>_id
+        // e.g. 'order_items' has 'order_id' pointing to this row's 'id' (one-to-many)
+        const singularParent = this.tableName.replace(/s$/, '');
+        const fk = `${singularParent}_id`;
+        const children = relData.filter(r => r[fk] === row.id);
+        if (children.length > 0) {
+          enrichedRow[relTable] = children;
+        } else {
+          // Convention 2: this row has a FK to the related table (many-to-one)
+          // e.g. 'shop_tables' row has 'shop_id' → look up 'shops' by id
+          const singularRel = relTable.replace(/s$/, '');
+          const rowFk = `${singularRel}_id`;
+          if (row[rowFk]) {
+            const parent = relData.find(r => r.id === row[rowFk]);
+            if (parent) {
+              enrichedRow[relTable] = parent;
+            }
+          }
+          // Fallback: try direct id match (e.g. shop_id → shops)
+          if (!enrichedRow[relTable] && row[`${relTable.replace(/s$/, '')}_id`] === undefined) {
+            const directFk = `${relTable.replace(/s$/, '')}_id`;
+            if (row[directFk]) {
+              const parent = relData.find(r => r.id === row[directFk]);
+              if (parent) enrichedRow[relTable] = parent;
+            }
+          }
+          // If still no match, set empty array for child relations
+          if (!enrichedRow[relTable] && relTable !== this.tableName) {
+            enrichedRow[relTable] = [];
+          }
+        }
+      }
+      return enrichedRow;
+    });
+  }
+
   async then(resolve) {
     try {
       const db = getMockDB();
@@ -250,7 +350,8 @@ class MockQueryBuilder {
         let filtered = [...tableData];
         for (const filter of this.filters) {
           if (filter.type === 'eq') {
-            if (filter.column.includes('!inner')) {
+            if (filter.column.includes('!inner') || filter.column.includes('.')) {
+              // Handle joined-table filters like 'categories.shop_id' or 'categories!inner.shop_id'
               const shopId = filter.value;
               filtered = filtered.filter(item => {
                 const category = db.categories.find(c => c.id === item.category_id);
@@ -277,6 +378,9 @@ class MockQueryBuilder {
         if (this.limitVal !== null) {
           filtered = filtered.slice(0, this.limitVal);
         }
+
+        // Resolve relational queries (e.g. 'order_items(*)', 'shops(*)', 'categories!inner(shop_id)')
+        filtered = this._resolveRelations(filtered, db);
 
         if (this.isSingle || this.isMaybeSingle) {
           resolve({ data: filtered[0] || null, error: null });
@@ -339,7 +443,11 @@ class MockQueryBuilder {
           broadcastMockChange(this.tableName, 'UPDATE', row, oldRows[i]);
         });
 
-        resolve({ data: null, error: null, count: updatedCount });
+        if (this.selectAfter) {
+          resolve({ data: this.isSingle || this.isMaybeSingle ? (updatedRows[0] || null) : updatedRows, error: null });
+        } else {
+          resolve({ data: null, error: null, count: updatedCount });
+        }
 
       } else if (this.operation === 'delete') {
         const deletedRows = [];
@@ -405,6 +513,15 @@ const mockSupabase = {
       return { data: { user: null }, error: { message: 'Invalid login credentials' } };
     },
 
+    getSession: async () => {
+      const sessionStr = localStorage.getItem('supabase_mock_session');
+      if (sessionStr) {
+        const session = JSON.parse(sessionStr);
+        return { data: { session: { access_token: 'mock-token', user: session.user } }, error: null };
+      }
+      return { data: { session: null }, error: null };
+    },
+
     getUser: async () => {
       const sessionStr = localStorage.getItem('supabase_mock_session');
       if (sessionStr) {
@@ -416,6 +533,7 @@ const mockSupabase = {
 
     signOut: async () => {
       localStorage.removeItem('supabase_mock_session');
+      localStorage.removeItem('supabase_mock_mode');
       return { error: null };
     },
 
@@ -479,7 +597,12 @@ const mockSupabase = {
   }
 };
 
+if (typeof window !== 'undefined' && window.location.search.includes('mock=true')) {
+  localStorage.setItem('supabase_mock_mode', 'true');
+}
+
 const isMockMode = typeof window !== 'undefined' && (
+  localStorage.getItem('supabase_mock_mode') === 'true' ||
   window.location.search.includes('mock=true') || 
   navigator.webdriver || 
   navigator.userAgent.includes('HeadlessChrome') ||
@@ -491,5 +614,17 @@ if (isMockMode) {
 }
 
 export const supabase = isMockMode ? mockSupabase : realSupabase;
+
+// --- Client-Side Rate Limiting Helper ---
+export const checkRateLimit = (action, cooldownMs) => {
+  const key = `ratelimit_${action}`;
+  const lastCall = localStorage.getItem(key);
+  const now = Date.now();
+  if (lastCall && now - parseInt(lastCall, 10) < cooldownMs) {
+    return false; // Rate limited
+  }
+  localStorage.setItem(key, now.toString());
+  return true; // Allowed
+};
 
 

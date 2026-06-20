@@ -13,4 +13,4 @@ Disallow: /register
 # Allow public menu pages
 Allow: /menu/
 
-Sitemap: https://qconnect.app/sitemap.xml
+Sitemap: https://qconnect.menu/sitemap.xml

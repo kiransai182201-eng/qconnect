@@ -11,6 +11,7 @@ const RegisterLogin = () => {
   const [password, setPassword] = useState('');
   const [fullName, setFullName] = useState('');
   const [error, setError] = useState('');
+  const [message, setMessage] = useState('');
   const [loading, setLoading] = useState(false);
   const navigate = useNavigate();
   const { t } = useLanguage();
@@ -28,21 +29,27 @@ const RegisterLogin = () => {
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError('');
+    setMessage('');
     setLoading(true);
 
     try {
       if (isLogin) {
         const { error } = await supabase.auth.signInWithPassword({ email, password });
         if (error) throw error;
-        navigate('/shop-setup');
+        navigate('/dashboard');
       } else {
-        const { error } = await supabase.auth.signUp({ 
+        const { data, error } = await supabase.auth.signUp({ 
           email, 
           password,
           options: { data: { full_name: fullName } }
         });
         if (error) throw error;
-        navigate('/shop-setup');
+        
+        if (data?.user && !data.session) {
+          setMessage('Signup successful! A verification email has been sent. Please check your inbox.');
+        } else {
+          navigate('/dashboard');
+        }
       }
     } catch (err) {
       setError(err.message);
@@ -55,7 +62,7 @@ const RegisterLogin = () => {
     try {
       const { error } = await supabase.auth.signInWithOAuth({
         provider: 'google',
-        options: { redirectTo: window.location.origin + '/shop-setup' }
+        options: { redirectTo: window.location.origin + '/dashboard' }
       });
       if (error) throw error;
     } catch (err) {
@@ -77,6 +84,7 @@ const RegisterLogin = () => {
         </div>
 
         {error && <div style={{ background: 'rgba(255,0,0,0.1)', color: '#ff6b6b', padding: '10px', borderRadius: '8px', marginBottom: '1rem', fontSize: '0.9rem', textAlign: 'center' }}>{error}</div>}
+        {message && <div style={{ background: 'rgba(76, 175, 80, 0.1)', color: '#4caf50', padding: '10px', borderRadius: '8px', marginBottom: '1rem', fontSize: '0.9rem', textAlign: 'center' }}>{message}</div>}
 
         <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
           {!isLogin && (

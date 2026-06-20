@@ -23,14 +23,15 @@ class ErrorBoundary extends React.Component {
           flexDirection: 'column',
           alignItems: 'center',
           justifyContent: 'center',
-          backgroundColor: '#fdfbf7',
+          backgroundColor: 'var(--color-bg)',
+          color: 'var(--color-text-main)',
           padding: '2rem',
           textAlign: 'center',
-          fontFamily: 'system-ui, -apple-system, sans-serif'
+          fontFamily: 'var(--font-body)'
         }}>
           <div style={{
-            backgroundColor: 'rgba(239, 68, 68, 0.1)',
-            color: '#ef4444',
+            backgroundColor: 'rgba(201, 149, 42, 0.1)',
+            color: 'var(--color-accent)',
             padding: '1.5rem',
             borderRadius: '50%',
             marginBottom: '1.5rem',
@@ -43,27 +44,34 @@ class ErrorBoundary extends React.Component {
           }}>
             <span style={{ fontSize: '2.5rem' }}>⚠️</span>
           </div>
-          <h2 style={{ color: '#1a1a1a', fontSize: '1.5rem', fontWeight: 'bold', margin: '0 0 0.5rem 0' }}>Something went wrong</h2>
-          <p style={{ color: '#6b7280', marginTop: '0.5rem', maxWidth: '360px', lineHeight: '1.5', margin: '0 auto 1.5rem auto' }}>
-            The application encountered an unexpected error. Please refresh the page or contact support if the issue persists.
+          <h2 style={{ fontFamily: 'var(--font-heading)', fontSize: '2rem', fontWeight: 'bold', margin: '0 0 1rem 0' }}>Something went wrong</h2>
+          <p style={{ color: 'var(--color-text-muted)', marginTop: '0.5rem', maxWidth: '400px', lineHeight: '1.6', margin: '0 auto 2rem auto' }}>
+            The application encountered an unexpected error. Please refresh the page or return to safety.
           </p>
-          <button
-            onClick={() => window.location.reload()}
-            style={{
-              padding: '12px 24px',
-              backgroundColor: '#ff6b35',
-              color: 'white',
-              border: 'none',
-              borderRadius: '8px',
-              fontWeight: 'bold',
-              cursor: 'pointer',
-              boxShadow: '0 4px 12px rgba(255,107,53,0.3)',
-              fontSize: '1rem',
-              transition: 'transform 0.2s'
-            }}
-          >
-            Reload Page
-          </button>
+          <div style={{ display: 'flex', gap: '1rem' }}>
+            <button
+              onClick={() => window.location.reload()}
+              className="btn-primary"
+              style={{ padding: '12px 28px' }}
+            >
+              Reload Page
+            </button>
+            <button
+              onClick={() => window.location.href = '/'}
+              style={{
+                padding: '12px 28px',
+                backgroundColor: 'var(--color-surface)',
+                color: 'var(--color-text-main)',
+                border: '1px solid var(--glass-border)',
+                borderRadius: '30px',
+                fontWeight: '600',
+                fontSize: '1rem',
+                cursor: 'pointer'
+              }}
+            >
+              Go to Home
+            </button>
+          </div>
         </div>
       );
     }

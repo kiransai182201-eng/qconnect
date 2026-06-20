@@ -164,16 +164,23 @@ const OwnerLayout = ({ activeTab }) => {
               filter: `shop_id=eq.${s.id}`
             }, async (payload) => {
               if (payload.eventType === 'INSERT') {
-                const { data: newOrder } = await supabase
-                  .from('orders')
-                  .select('*, order_items(*)')
-                  .eq('id', payload.new.id)
-                  .single();
-                if (newOrder) {
-                  setOrders(prev => [newOrder, ...prev]);
-                  setShowNewOrderAlert(true);
-                  setTimeout(() => setShowNewOrderAlert(false), 5000);
-                }
+                // Small delay to ensure order_items have been inserted by the client
+                setTimeout(async () => {
+                  const { data: newOrder } = await supabase
+                    .from('orders')
+                    .select('*, order_items(*)')
+                    .eq('id', payload.new.id)
+                    .single();
+                  if (newOrder) {
+                    setOrders(prev => {
+                      // Prevent duplicates
+                      if (prev.some(o => o.id === newOrder.id)) return prev;
+                      return [newOrder, ...prev];
+                    });
+                    setShowNewOrderAlert(true);
+                    setTimeout(() => setShowNewOrderAlert(false), 5000);
+                  }
+                }, 1500);
               } else if (payload.eventType === 'UPDATE') {
                 const updated = payload.new;
                 if (updated.status === 'rejected' || updated.status === 'delivered') {
@@ -292,11 +299,11 @@ const OwnerLayout = ({ activeTab }) => {
             const isActive = currentTab === item.id;
             return (
               <button
-                key={item.id}
-                className={`sidebar-nav-item ${isActive ? 'active' : ''}`}
+                className={`sidebar-nav-item ${currentTab === item.id ? 'active' : ''}`}
                 onClick={() => navigate(item.path)}
+                aria-label={`Navigate to ${item.label}`}
               >
-                <Icon className="sidebar-icon" size={20} />
+                <Icon className="sidebar-icon" size={20} aria-hidden="true" />
                 <span className="sidebar-label">{item.label}</span>
               </button>
             );
@@ -313,10 +320,10 @@ const OwnerLayout = ({ activeTab }) => {
             {/* Mobile View: Back arrow & logo */}
             <div className="mobile-header-info">
               {shop?.logo_url ? (
-                <img src={shop.logo_url} alt="Shop Logo" className="mobile-shop-logo" />
+                <img src={shop.logo_url} alt="Shop Logo" className="mobile-shop-logo" loading="lazy" />
               ) : (
                 <div className="mobile-shop-logo fallback">
-                  <Coffee size={20} />
+                  <Coffee size={20} aria-hidden="true" />
                 </div>
               )}
             </div>
@@ -336,7 +343,7 @@ const OwnerLayout = ({ activeTab }) => {
             {/* Notifications Dropdown */}
             <div className="top-notification-wrapper">
               <button className="top-notification-btn" onClick={() => setIsNotifOpen(!isNotifOpen)} aria-label="Toggle notifications">
-                <Bell size={22} />
+                <Bell size={22} aria-hidden="true" />
                 {notifications.filter(n => !n.is_read).length > 0 && (
                   <span className="top-notification-dot"></span>
                 )}
@@ -368,7 +375,7 @@ const OwnerLayout = ({ activeTab }) => {
                             backgroundColor: n.type === 'feedback' ? 'rgba(76, 175, 80, 0.1)' : 'rgba(255, 109, 0, 0.1)', 
                             color: n.type === 'feedback' ? '#4CAF50' : '#ff6b35' 
                           }}>
-                            {n.type === 'feedback' ? <MessageSquare size={16} /> : <Bell size={16} />}
+                            {n.type === 'feedback' ? <MessageSquare size={16} aria-hidden="true" /> : <Bell size={16} aria-hidden="true" />}
                           </div>
                           <div className="top-notification-content">
                             <p className="top-notification-title">{n.title}</p>
@@ -404,22 +411,22 @@ const OwnerLayout = ({ activeTab }) => {
       {/* 3. Bottom Navigation - Mobile View only (preserves current structure) */}
       <nav className="dash-bottom-nav" aria-label="Mobile navigation">
         <button className={`dash-nav-item ${currentTab === 'dashboard' ? 'active' : ''}`} onClick={() => navigate('/dashboard')} aria-label="Dashboard">
-          <LayoutGrid size={24} />
+          <LayoutGrid size={24} aria-hidden="true" />
           <span className="dash-nav-label">{t.dashboard}</span>
         </button>
         <button className={`dash-nav-item ${currentTab === 'menu' ? 'active' : ''}`} onClick={() => navigate('/menu-builder')} aria-label="Menu Builder">
-          <Utensils size={24} />
+          <Utensils size={24} aria-hidden="true" />
           <span className="dash-nav-label">{t.menu}</span>
         </button>
         <button className={`dash-nav-item ${currentTab === 'qr-code' ? 'active' : ''}`} onClick={() => navigate('/qr-code')} style={{ position: 'relative', top: '-10px', backgroundColor: 'var(--color-bg)', padding: '8px', borderRadius: '50%', color: 'var(--color-accent)', border: '2px solid var(--color-surface)' }} aria-label="QR Codes">
-          <QrCode size={28} />
+          <QrCode size={28} aria-hidden="true" />
         </button>
         <button className={`dash-nav-item ${currentTab === 'history' ? 'active' : ''}`} onClick={() => navigate('/history')} aria-label="Bill History">
-          <FileText size={24} />
+          <FileText size={24} aria-hidden="true" />
           <span className="dash-nav-label">{t.history}</span>
         </button>
         <button className={`dash-nav-item ${currentTab === 'settings' ? 'active' : ''}`} onClick={() => navigate('/settings')} aria-label="Settings">
-          <Settings size={24} />
+          <Settings size={24} aria-hidden="true" />
           <span className="dash-nav-label">{t.settings}</span>
         </button>
       </nav>
@@ -439,7 +446,7 @@ const OwnerLayout = ({ activeTab }) => {
             }}
           >
             <div className="owner-toast-icon-wrapper">
-              {activeToast.type === 'feedback' ? <MessageSquare size={20} /> : <Bell size={20} />}
+              {activeToast.type === 'feedback' ? <MessageSquare size={20} aria-hidden="true" /> : <Bell size={20} aria-hidden="true" />}
             </div>
             <div className="owner-toast-content">
               <h4 className="owner-toast-title">{activeToast.title}</h4>
@@ -453,7 +460,7 @@ const OwnerLayout = ({ activeTab }) => {
               }}
               aria-label="Close notification"
             >
-              <X size={16} />
+              <X size={16} aria-hidden="true" />
             </button>
           </div>
         </div>

@@ -1,16 +1,17 @@
 @import url('https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&family=Playfair+Display:ital,wght@0,400;0,600;0,700;1,400&display=swap');
 
 :root {
-  --color-primary: #3E2723; /* Deep Espresso */
-  --color-secondary: #D7CCC8; /* Latte */
-  --color-accent: #FF6D00; /* Vibrant Orange for CTA */
-  --color-bg: #121212; /* Dark Mode Background */
-  --color-surface: #1E1E1E; /* Dark Surface */
-  --color-text-main: #F5F5F5;
-  --color-text-muted: #BDBDBD;
+  --color-primary: #8B3A1A; /* Rust */
+  --color-secondary: #EDE3D0; /* Cream2 */
+  --color-accent: #C9952A; /* Gold */
+  --color-accent-light: #F5C842; /* Gold Light */
+  --color-bg: #0D0A06; /* Deep Gold-Tinted Black Background */
+  --color-surface: #161209; /* Dark Gold-Tinted Surface */
+  --color-text-main: #F9F3E8; /* Cream */
+  --color-text-muted: #9A8870; /* Muted Cream */
   
-  --glass-bg: rgba(30, 30, 30, 0.6);
-  --glass-border: rgba(255, 255, 255, 0.08);
+  --glass-bg: rgba(22, 18, 9, 0.6);
+  --glass-border: rgba(201, 149, 42, 0.15);
   
   --font-heading: 'Playfair Display', serif;
   --font-body: 'Outfit', sans-serif;
@@ -20,16 +21,17 @@
 }
 
 :root.light-mode {
-  --color-primary: #3E2723; /* Deep Espresso */
-  --color-secondary: #5D4037; 
-  --color-accent: #FF6D00; /* Vibrant Orange for CTA */
-  --color-bg: #F8FAFC; /* Light Mode Background */
-  --color-surface: #FFFFFF; /* Light Surface */
-  --color-text-main: #1E293B;
-  --color-text-muted: #64748B;
+  --color-primary: #8B3A1A;
+  --color-secondary: #5A5040;
+  --color-accent: #C9952A;
+  --color-accent-light: #F5C842;
+  --color-bg: #F9F3E8; /* Light Cream Background */
+  --color-surface: #EDE3D0; /* Cream Surface */
+  --color-text-main: #0D0A06; /* Dark Text */
+  --color-text-muted: #5A5040; /* Muted Dark Text */
   
-  --glass-bg: rgba(255, 255, 255, 0.8);
-  --glass-border: rgba(0, 0, 0, 0.1);
+  --glass-bg: rgba(237, 227, 208, 0.8);
+  --glass-border: rgba(201, 149, 42, 0.2);
 }
 
 * {
@@ -421,6 +423,88 @@ button {
   justify-content: center;
   margin-right: 1rem;
   font-size: 1.5rem;
+}
+
+/* GLOBAL CUSTOM CURSOR CONFIG */
+body, 
+body a, 
+body button, 
+body input, 
+body select, 
+body textarea, 
+body [role="button"], 
+body .sidebar-nav-item, 
+body .feature-tab,
+body .nav-links a {
+  cursor: none !important;
+}
+
+#cursor {
+  position: fixed;
+  width: 8px;
+  height: 8px;
+  background: var(--color-accent);
+  border-radius: 50%;
+  pointer-events: none;
+  z-index: 9999;
+  transform: translate(-50%, -50%);
+  transition: width .2s, height .2s, background .2s;
+}
+
+#cursor-ring {
+  position: fixed;
+  width: 36px;
+  height: 36px;
+  border: 1.5px solid rgba(201, 149, 42, 0.5);
+  border-radius: 50%;
+  pointer-events: none;
+  z-index: 9998;
+  transform: translate(-50%, -50%);
+  transition: transform .12s ease-out, width .2s, height .2s, opacity .2s;
+}
+
+body:has(a:hover) #cursor,
+body:has(button:hover) #cursor,
+body:has(input:hover) #cursor,
+body:has(select:hover) #cursor,
+body:has(textarea:hover) #cursor,
+body:has([role="button"]:hover) #cursor,
+body:has(.sidebar-nav-item:hover) #cursor,
+body:has(.feature-tab:hover) #cursor,
+body:has(.nav-links a:hover) #cursor {
+  width: 12px;
+  height: 12px;
+  background: var(--color-accent-light, #F5C842);
+}
+
+body:has(a:hover) #cursor-ring,
+body:has(button:hover) #cursor-ring,
+body:has(input:hover) #cursor-ring,
+body:has(select:hover) #cursor-ring,
+body:has(textarea:hover) #cursor-ring,
+body:has([role="button"]:hover) #cursor-ring,
+body:has(.sidebar-nav-item:hover) #cursor-ring,
+body:has(.feature-tab:hover) #cursor-ring,
+body:has(.nav-links a:hover) #cursor-ring {
+  width: 52px;
+  height: 52px;
+  opacity: .6;
+  border-color: var(--color-accent-light, #F5C842);
+}
+
+/* Custom Gold & Black Scrollbar */
+::-webkit-scrollbar {
+  width: 8px;
+}
+::-webkit-scrollbar-track {
+  background: var(--color-bg);
+}
+::-webkit-scrollbar-thumb {
+  background: var(--color-accent);
+  border-radius: 4px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: var(--color-accent-light);
 }
 
 
