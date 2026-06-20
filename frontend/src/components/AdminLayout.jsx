@@ -43,12 +43,6 @@ const AdminLayout = () => {
           return;
         }
 
-        const pinVerified = sessionStorage.getItem('admin_pin_verified') === 'true';
-        if (!pinVerified) {
-          navigate('/admin');
-          return;
-        }
-
         setUser(authUser);
       } catch (err) {
         console.error('Admin auth check failed:', err);
