@@ -351,7 +351,12 @@ const CustomerMenu = () => {
 
     setIsCallingWaiter(true);
     const { error } = await supabase.from('notifications').insert([
-      { shop_id: shop.id, type: 'waiter_call', table_number: tNum }
+      { 
+        shop_id: shop.id, 
+        type: 'waiter', 
+        title: 'Waiter Request', 
+        message: `Table ${tNum} requested a waiter.` 
+      }
     ]);
     setIsCallingWaiter(false);
 
