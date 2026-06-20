@@ -62,8 +62,11 @@ const LandingPage = () => {
     resize();
     window.addEventListener('resize', resize);
 
-    // Initialize 80 particles
-    for (let i = 0; i < 80; i++) {
+    const isMobile = window.innerWidth < 768;
+    const particleCount = isMobile ? 25 : 65;
+
+    // Initialize particles
+    for (let i = 0; i < particleCount; i++) {
       particles.push({
         x: Math.random() * W,
         y: Math.random() * H,
@@ -77,6 +80,8 @@ const LandingPage = () => {
     const drawParticles = () => {
       if (!ctx || !canvas) return;
       ctx.clearRect(0, 0, W, H);
+      const maxDistSq = 14400; // 120 * 120
+
       for (let i = 0; i < particles.length; i++) {
         const p = particles[i];
         p.x += p.vx;
@@ -98,8 +103,10 @@ const LandingPage = () => {
           const q = particles[j];
           const dx = p.x - q.x;
           const dy = p.y - q.y;
-          const dist = Math.sqrt(dx * dx + dy * dy);
-          if (dist < 120) {
+          const distSq = dx * dx + dy * dy;
+
+          if (distSq < maxDistSq) {
+            const dist = Math.sqrt(distSq);
             ctx.beginPath();
             ctx.moveTo(p.x, p.y);
             ctx.lineTo(q.x, q.y);
@@ -190,6 +197,13 @@ const LandingPage = () => {
   }, []);
 
   // 7. Navigation Actions
+  const handleFeatureKeyDown = (e, feature) => {
+    if (e.key === 'Enter' || e.key === ' ') {
+      e.preventDefault();
+      setActiveFeature(feature);
+    }
+  };
+
   const handleCtaClick = () => {
     if (isLoggedIn) {
       navigate('/dashboard');
@@ -576,10 +590,16 @@ const LandingPage = () => {
         </div>
 
         <div className="features-layout">
-          <div className="features-list reveal reveal-delay-1">
+          <div className="features-list reveal reveal-delay-1" role="tablist" aria-label="Platform Features">
             <div 
               className={`feature-tab ${activeFeature === 'menu' ? 'active' : ''}`}
               onClick={() => setActiveFeature('menu')}
+              onKeyDown={(e) => handleFeatureKeyDown(e, 'menu')}
+              role="tab"
+              tabIndex={0}
+              aria-selected={activeFeature === 'menu'}
+              aria-controls="feature-preview"
+              id="tab-menu"
             >
               <div className="feature-tab-head">
                 <div className="feature-tab-icon">🍽</div>
@@ -590,6 +610,12 @@ const LandingPage = () => {
             <div 
               className={`feature-tab ${activeFeature === 'orders' ? 'active' : ''}`}
               onClick={() => setActiveFeature('orders')}
+              onKeyDown={(e) => handleFeatureKeyDown(e, 'orders')}
+              role="tab"
+              tabIndex={0}
+              aria-selected={activeFeature === 'orders'}
+              aria-controls="feature-preview"
+              id="tab-orders"
             >
               <div className="feature-tab-head">
                 <div className="feature-tab-icon">⚡</div>
@@ -600,6 +626,12 @@ const LandingPage = () => {
             <div 
               className={`feature-tab ${activeFeature === 'waiter' ? 'active' : ''}`}
               onClick={() => setActiveFeature('waiter')}
+              onKeyDown={(e) => handleFeatureKeyDown(e, 'waiter')}
+              role="tab"
+              tabIndex={0}
+              aria-selected={activeFeature === 'waiter'}
+              aria-controls="feature-preview"
+              id="tab-waiter"
             >
               <div className="feature-tab-head">
                 <div className="feature-tab-icon">👤</div>
@@ -610,6 +642,12 @@ const LandingPage = () => {
             <div 
               className={`feature-tab ${activeFeature === 'dashboard' ? 'active' : ''}`}
               onClick={() => setActiveFeature('dashboard')}
+              onKeyDown={(e) => handleFeatureKeyDown(e, 'dashboard')}
+              role="tab"
+              tabIndex={0}
+              aria-selected={activeFeature === 'dashboard'}
+              aria-controls="feature-preview"
+              id="tab-dashboard"
             >
               <div className="feature-tab-head">
                 <div className="feature-tab-icon">📈</div>
@@ -620,6 +658,12 @@ const LandingPage = () => {
             <div 
               className={`feature-tab ${activeFeature === 'qr' ? 'active' : ''}`}
               onClick={() => setActiveFeature('qr')}
+              onKeyDown={(e) => handleFeatureKeyDown(e, 'qr')}
+              role="tab"
+              tabIndex={0}
+              aria-selected={activeFeature === 'qr'}
+              aria-controls="feature-preview"
+              id="tab-qr"
             >
               <div className="feature-tab-head">
                 <div className="feature-tab-icon">🔲</div>
@@ -629,7 +673,7 @@ const LandingPage = () => {
             </div>
           </div>
 
-          <div className="features-preview reveal reveal-delay-2" id="feature-preview">
+          <div className="features-preview reveal reveal-delay-2" id="feature-preview" role="tabpanel" aria-labelledby={`tab-${activeFeature}`} aria-hidden="true">
             {renderPreviewContent()}
           </div>
         </div>
@@ -664,7 +708,7 @@ const LandingPage = () => {
             </ul>
           </div>
           
-          <div className="phone-wrap reveal reveal-delay-2">
+          <div className="phone-wrap reveal reveal-delay-2" aria-hidden="true">
             <div className="phone">
               <div className="phone-notch"></div>
               <div className="phone-screen">

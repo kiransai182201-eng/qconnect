@@ -12,8 +12,7 @@ const CustomCursor = () => {
       mx = e.clientX;
       my = e.clientY;
       if (cursorRef.current) {
-        cursorRef.current.style.left = `${mx}px`;
-        cursorRef.current.style.top = `${my}px`;
+        cursorRef.current.style.transform = `translate3d(${mx}px, ${my}px, 0) translate(-50%, -50%)`;
       }
     };
 
@@ -21,8 +20,7 @@ const CustomCursor = () => {
       rx += (mx - rx) * 0.12;
       ry += (my - ry) * 0.12;
       if (ringRef.current) {
-        ringRef.current.style.left = `${rx}px`;
-        ringRef.current.style.top = `${ry}px`;
+        ringRef.current.style.transform = `translate3d(${rx}px, ${ry}px, 0) translate(-50%, -50%)`;
       }
       animationFrameId = requestAnimationFrame(animateRing);
     };
