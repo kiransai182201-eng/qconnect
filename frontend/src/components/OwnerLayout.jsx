@@ -12,6 +12,7 @@ import {
   Coffee,
   FileText,
   ClipboardList,
+  Shield,
   X
 } from 'lucide-react';
 import { useLanguage } from '../contexts/LanguageContext';
@@ -77,16 +78,31 @@ const OwnerLayout = ({ activeTab }) => {
     };
   }, [currentTab, shop?.name, t]);
 
-  // Navigation Items for Desktop Sidebar
-  const sidebarItems = [
-    { id: 'dashboard', label: t.dashboard, path: '/dashboard', icon: LayoutGrid },
-    { id: 'menu', label: t.menu, path: '/menu-builder', icon: Utensils },
-    { id: 'qr-code', label: t.qrCodes, path: '/qr-code', icon: QrCode },
-    { id: 'orders', label: t.orders, path: '/orders', icon: ClipboardList },
-    { id: 'feedback', label: t.feedback, path: '/feedback', icon: MessageSquare },
-    { id: 'history', label: t.history, path: '/history', icon: History },
-    { id: 'settings', label: t.settings, path: '/settings', icon: Settings }
+  // Whitelisted admin emails
+  const ADMIN_EMAILS = [
+    'sunnykiran715@gmail.com',
+    'revanthrevanth4248@gmail.com'
   ];
+
+  // Navigation Items for Desktop Sidebar
+  const getSidebarItems = () => {
+    const items = [
+      { id: 'dashboard', label: t.dashboard, path: '/dashboard', icon: LayoutGrid },
+      { id: 'menu', label: t.menu, path: '/menu-builder', icon: Utensils },
+      { id: 'qr-code', label: t.qrCodes, path: '/qr-code', icon: QrCode },
+      { id: 'orders', label: t.orders, path: '/orders', icon: ClipboardList },
+      { id: 'feedback', label: t.feedback, path: '/feedback', icon: MessageSquare },
+      { id: 'history', label: t.history, path: '/history', icon: History },
+      { id: 'settings', label: t.settings, path: '/settings', icon: Settings }
+    ];
+
+    if (user && ADMIN_EMAILS.includes(user.email?.toLowerCase())) {
+      items.push({ id: 'admin', label: 'Admin Panel', path: '/admin/dashboard', icon: Shield });
+    }
+    return items;
+  };
+
+  const sidebarItems = getSidebarItems();
 
   useEffect(() => {
     let isMounted = true;

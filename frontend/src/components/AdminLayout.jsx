@@ -5,6 +5,7 @@ import {
   LayoutGrid, 
   Users, 
   Shield, 
+  Store,
   LogOut,
   Menu,
   X
@@ -42,6 +43,12 @@ const AdminLayout = () => {
           return;
         }
 
+        const pinVerified = sessionStorage.getItem('admin_pin_verified') === 'true';
+        if (!pinVerified) {
+          navigate('/admin');
+          return;
+        }
+
         setUser(authUser);
       } catch (err) {
         console.error('Admin auth check failed:', err);
@@ -71,6 +78,7 @@ const AdminLayout = () => {
   const sidebarItems = [
     { id: 'dashboard', label: 'Dashboard', path: '/admin/dashboard', icon: LayoutGrid },
     { id: 'owners', label: 'Shop Owners', path: '/admin/owners', icon: Users },
+    { id: 'owner-panel', label: 'Owner Panel', path: '/dashboard', icon: Store }
   ];
 
   return (
