@@ -15,7 +15,9 @@ const getMockDB = () => {
   if (!db) {
     db = {
       users: [
-        { id: 'user-1', email: 'example@gmail.com', password: 'password123', full_name: 'Kitchen Staff' }
+        { id: 'user-1', email: 'example@gmail.com', password: 'password123', full_name: 'Kitchen Staff' },
+        { id: 'user-admin-1', email: 'sunnykiran715@gmail.com', password: 'password123', full_name: 'Sunny Kiran' },
+        { id: 'user-admin-2', email: 'revanthrevanth4248@gmail.com', password: 'password123', full_name: 'Revanth' }
       ],
       shops: [
         {
