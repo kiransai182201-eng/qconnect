@@ -136,7 +136,7 @@ const CustomerMenu = () => {
           return;
         }
       } else {
-        const { data: shopData } = await supabase.from('shops').select('*').eq('unique_id', shopId).single();
+        const { data: shopData } = await supabase.from('shops').select('*').eq('owner_unique_id', shopId).single();
         if (shopData) {
           currentShop = shopData;
           currentShopId = currentShop.id;
