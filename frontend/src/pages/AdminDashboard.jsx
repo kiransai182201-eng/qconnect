@@ -189,7 +189,6 @@ const AdminDashboard = () => {
                 <th>Mobile</th>
                 <th>Address</th>
                 <th>Status</th>
-                <th>Approval</th>
                 <th>Registered</th>
                 <th>Action</th>
               </tr>
@@ -217,11 +216,6 @@ const AdminDashboard = () => {
                   <td>
                     <span className={`admin-status-badge ${shop.holiday_mode ? 'holiday' : 'active'}`}>
                       {shop.holiday_mode ? 'Closed' : 'Active'}
-                    </span>
-                  </td>
-                  <td>
-                    <span className={`admin-status-badge ${shop.is_approved ? 'active' : 'holiday'}`}>
-                      {shop.is_approved ? 'Approved' : 'Pending'}
                     </span>
                   </td>
                   <td style={{ fontSize: '0.8rem', color: '#64748b' }}>

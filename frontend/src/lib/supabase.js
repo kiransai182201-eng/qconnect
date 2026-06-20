@@ -38,9 +38,7 @@ const getMockDB = () => {
           accept_orders: true,
           auto_approval: false,
           mobile: '1234567890',
-          address: '123 Pizza St',
-          email: 'example@gmail.com',
-          is_approved: true
+          address: '123 Pizza St'
         }
       ],
       categories: [

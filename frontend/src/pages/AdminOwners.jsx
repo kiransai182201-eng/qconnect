@@ -37,23 +37,6 @@ const AdminOwners = () => {
     fetchOwners();
   }, []);
 
-  const handleApprove = async (shopId, shopName) => {
-    if (!window.confirm(`Are you sure you want to approve "${shopName}"?`)) return;
-    try {
-      const { error } = await supabase
-        .from('shops')
-        .update({ is_approved: true })
-        .eq('id', shopId);
-
-      if (error) throw error;
-
-      setShops(prev => prev.map(s => s.id === shopId ? { ...s, is_approved: true } : s));
-    } catch (err) {
-      console.error('Failed to approve shop:', err.message);
-      alert('Failed to approve shop: ' + err.message);
-    }
-  };
-
   const strftime = (dateStr) => {
     if (!dateStr) return 'N/A';
     const d = new Date(dateStr);
@@ -125,11 +108,10 @@ const AdminOwners = () => {
                 <th>#</th>
                 <th>Shop Name</th>
                 <th>Owner Name</th>
-                <th>Email</th>
                 <th>Mobile</th>
+                <th>Address</th>
                 <th>Tables</th>
                 <th>Status</th>
-                <th>Approval</th>
                 <th>Registered On</th>
                 <th>Actions</th>
               </tr>
@@ -151,11 +133,16 @@ const AdminOwners = () => {
                     </div>
                   </td>
                   <td>{shop.owner_name || '—'}</td>
-                  <td style={{ fontSize: '0.85rem' }}>{shop.email || '—'}</td>
                   <td>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
                       <Phone size={13} style={{ color: '#64748b' }} />
                       {shop.mobile || '—'}
+                    </div>
+                  </td>
+                  <td style={{ maxWidth: '180px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                      <MapPin size={13} style={{ color: '#64748b', flexShrink: 0 }} />
+                      {shop.address || '—'}
                     </div>
                   </td>
                   <td style={{ textAlign: 'center' }}>{shop.tables || '—'}</td>
@@ -164,38 +151,17 @@ const AdminOwners = () => {
                       {shop.holiday_mode ? 'Closed' : 'Active'}
                     </span>
                   </td>
-                  <td>
-                    <span className={`admin-status-badge ${shop.is_approved ? 'active' : 'holiday'}`}>
-                      {shop.is_approved ? 'Approved' : 'Pending'}
-                    </span>
-                  </td>
                   <td style={{ fontSize: '0.78rem', color: '#64748b', whiteSpace: 'nowrap' }}>
                     {strftime(shop.created_at)}
                   </td>
                   <td>
-                    <div style={{ display: 'flex', gap: '8px' }}>
-                      <button
-                        className="admin-view-btn"
-                        onClick={() => window.open(`/menu/${shop.owner_unique_id || shop.id}`, '_blank')}
-                      >
-                        <Eye size={14} style={{ marginRight: '4px', verticalAlign: 'middle' }} />
-                        View
-                      </button>
-                      
-                      {!shop.is_approved && (
-                        <button
-                          className="admin-view-btn"
-                          style={{
-                            backgroundColor: 'rgba(139, 92, 246, 0.15)',
-                            borderColor: 'rgba(139, 92, 246, 0.4)',
-                            color: '#a78bfa'
-                          }}
-                          onClick={() => handleApprove(shop.id, shop.name)}
-                        >
-                          Approve
-                        </button>
-                      )}
-                    </div>
+                    <button
+                      className="admin-view-btn"
+                      onClick={() => window.open(`/menu/${shop.owner_unique_id || shop.id}`, '_blank')}
+                    >
+                      <Eye size={14} style={{ marginRight: '4px', verticalAlign: 'middle' }} />
+                      View
+                    </button>
                   </td>
                 </tr>
               ))}
