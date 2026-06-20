@@ -423,6 +423,7 @@ const CustomerMenu = () => {
         searchQuery={searchQuery}
         setSearchQuery={setSearchQuery}
         addToCart={addToCart}
+        removeFromCart={removeFromCart}
         cart={cart}
         isDarkMode={isDarkMode}
         t={t}
@@ -449,31 +450,26 @@ const CustomerMenu = () => {
       />
 
       {/* Floating Buttons */}
-      <div style={{ position: 'fixed', bottom: getCartItemCount() > 0 ? '100px' : '2rem', left: '1rem', right: '1rem', display: 'flex', justifyContent: 'space-between', pointerEvents: 'none', zIndex: 30, transition: 'bottom 0.3s' }}>
+      <div 
+        className="customer-fab-container" 
+        style={{ bottom: getCartItemCount() > 0 ? '92px' : '1.5rem' }}
+      >
         <button 
           id="call-waiter-btn"
+          className="customer-fab"
           aria-label="Call waiter"
           onClick={callWaiter}
           disabled={isCallingWaiter}
-          style={{
-            backgroundColor: '#3b82f6', color: 'white', border: 'none',
-            padding: '1rem', borderRadius: '50%', boxShadow: '0 10px 25px rgba(0,0,0,0.2)',
-            display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', pointerEvents: 'auto',
-            opacity: isCallingWaiter ? 0.7 : 1
-          }}
+          style={{ opacity: isCallingWaiter ? 0.6 : 1 }}
         >
           <Bell size={24} />
         </button>
 
         <button 
           id="open-feedback-btn"
+          className="customer-fab"
           aria-label="Leave feedback"
           onClick={() => setIsFeedbackOpen(true)}
-          style={{
-            backgroundColor: '#1a1a1a', color: 'white', border: 'none',
-            padding: '1rem', borderRadius: '50%', boxShadow: '0 10px 25px rgba(0,0,0,0.2)',
-            display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', pointerEvents: 'auto'
-          }}
         >
           <MessageSquare size={24} />
         </button>
@@ -481,30 +477,30 @@ const CustomerMenu = () => {
 
       {/* Feedback Modal */}
       {isFeedbackOpen && (
-        <div style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 100, padding: '1rem' }}>
-          <div style={{ backgroundColor: isDarkMode ? '#1e293b' : 'white', borderRadius: '1.5rem', width: '100%', maxWidth: '400px', overflow: 'hidden', boxShadow: '0 20px 25px -5px rgba(0, 0, 0, 0.1)', border: isDarkMode ? '1px solid #334155' : 'none' }}>
-            <div style={{ padding: '1.5rem', borderBottom: isDarkMode ? '1px solid #334155' : '1px solid #f3f4f6', display: 'flex', justifyContent: 'space-between', alignItems: 'center', backgroundColor: isDarkMode ? '#0f172a' : '#fdfbf7' }}>
-              <h3 style={{ margin: 0, fontSize: '1.25rem', fontWeight: 'bold', fontFamily: 'Georgia, serif', color: isDarkMode ? '#f8fafc' : '#1a1a1a' }}>{t.leaveFeedback}</h3>
+        <div className="customer-modal-backdrop">
+          <div className="customer-modal">
+            <div className="customer-modal-header">
+              <h3 style={{ margin: 0, fontWeight: '800', color: 'var(--text-primary)' }}>{t.leaveFeedback}</h3>
               <button 
                 id="close-feedback-btn"
                 aria-label="Close feedback"
                 onClick={() => setIsFeedbackOpen(false)} 
-                style={{ background: 'none', border: 'none', cursor: 'pointer', color: isDarkMode ? '#94a3b8' : '#6b7280' }}
+                style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-secondary)' }}
               >
                 <X size={24} />
               </button>
             </div>
-            <div style={{ padding: '1.5rem' }}>
+            <div style={{ padding: '1.5rem 1.75rem' }}>
               {feedbackSuccess ? (
                 <div style={{ textAlign: 'center', padding: '2rem 0' }}>
-                  <CheckCircle size={48} color="#22c55e" style={{ margin: '0 auto 1rem auto' }} />
-                  <h4 style={{ margin: 0, fontSize: '1.125rem', fontWeight: '600', color: isDarkMode ? '#f8fafc' : '#1a1a1a' }}>{t.thankYou}</h4>
-                  <p style={{ margin: '0.5rem 0 0 0', color: isDarkMode ? '#94a3b8' : '#6b7280', fontSize: '0.875rem' }}>{t.feedbackSent}</p>
+                  <CheckCircle size={48} color="#10b981" style={{ margin: '0 auto 1rem auto' }} />
+                  <h4 style={{ margin: 0, fontSize: '1.125rem', fontWeight: '700', color: 'var(--text-primary)' }}>{t.thankYou}</h4>
+                  <p style={{ margin: '0.5rem 0 0 0', color: 'var(--text-secondary)', fontSize: '0.875rem' }}>{t.feedbackSent}</p>
                 </div>
               ) : (
                 <form onSubmit={submitFeedback}>
                   <div style={{ marginBottom: '1.5rem', textAlign: 'center' }}>
-                    <p style={{ margin: '0 0 0.5rem 0', fontSize: '0.875rem', fontWeight: '600', color: isDarkMode ? '#94a3b8' : '#374151' }}>{t.howWasExperience}</p>
+                    <p style={{ margin: '0 0 0.75rem 0', fontSize: '0.9rem', fontWeight: '700', color: 'var(--text-secondary)' }}>{t.howWasExperience}</p>
                     <div style={{ display: 'flex', justifyContent: 'center', gap: '0.5rem' }}>
                       {[1, 2, 3, 4, 5].map(star => (
                         <button 
@@ -513,28 +509,32 @@ const CustomerMenu = () => {
                           aria-label={`Rate ${star} star${star > 1 ? 's' : ''}`}
                           type="button" 
                           onClick={() => setFeedbackRating(star)} 
-                          style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '0.25rem' }}
+                          style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '0.25rem', transition: 'transform 0.2s' }}
+                          onMouseEnter={(e) => e.currentTarget.style.transform = 'scale(1.15)'}
+                          onMouseLeave={(e) => e.currentTarget.style.transform = 'scale(1)'}
                         >
-                          <Star size={32} fill={star <= feedbackRating ? "#f59e0b" : "transparent"} color={star <= feedbackRating ? "#f59e0b" : (isDarkMode ? '#475569' : '#d1d5db')} />
+                          <Star size={32} fill={star <= feedbackRating ? "var(--color-accent)" : "transparent"} color={star <= feedbackRating ? "var(--color-accent)" : "var(--text-muted)"} />
                         </button>
                       ))}
                     </div>
                   </div>
                   <div style={{ marginBottom: '1.5rem' }}>
-                    <label htmlFor="feedback-comments" style={{ display: 'block', margin: '0 0 0.5rem 0', fontSize: '0.875rem', fontWeight: '600', color: isDarkMode ? '#94a3b8' : '#374151' }}>{t.anyComments}</label>
+                    <label htmlFor="feedback-comments" style={{ display: 'block', margin: '0 0 0.5rem 0', fontSize: '0.85rem', fontWeight: '700', color: 'var(--text-secondary)' }}>{t.anyComments}</label>
                     <textarea 
                       id="feedback-comments"
                       value={feedbackMessage} 
                       onChange={e => setFeedbackMessage(e.target.value)} 
-                      placeholder="..." 
-                      style={{ width: '100%', padding: '0.75rem', borderRadius: '0.75rem', border: isDarkMode ? '1px solid #334155' : '1px solid #d1d5db', outline: 'none', minHeight: '100px', resize: 'vertical', fontSize: '0.875rem', fontFamily: 'inherit', backgroundColor: isDarkMode ? '#0f172a' : 'white', color: isDarkMode ? '#f8fafc' : '#1a1a1a' }} 
+                      placeholder="Your review helps us improve..." 
+                      className="customer-textarea"
+                      style={{ minHeight: '110px', resize: 'vertical' }}
                     />
                   </div>
                   <button 
                     id="submit-feedback-btn"
                     type="submit" 
                     disabled={isSubmitting} 
-                    style={{ width: '100%', padding: '1rem', borderRadius: '9999px', backgroundColor: '#ff6b35', color: 'white', fontWeight: '600', fontSize: '1rem', border: 'none', cursor: 'pointer', opacity: isSubmitting ? 0.7 : 1 }}
+                    className="customer-add-btn"
+                    style={{ width: '100%', padding: '1.1rem', borderRadius: '30px', fontSize: '0.95rem' }}
                   >
                     {isSubmitting ? t.sending : t.submitFeedback}
                   </button>
