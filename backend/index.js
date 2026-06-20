@@ -1,6 +1,7 @@
 const express = require('express');
 const cors = require('cors');
 const { createClient } = require('@supabase/supabase-js');
+const ws = require('ws');
 require('dotenv').config();
 
 const app = express();
@@ -9,17 +10,29 @@ const PORT = process.env.PORT || 3000;
 // ─── Supabase Client ───────────────────────────────────────────────────────────
 const supabase = createClient(
   process.env.SUPABASE_URL,
-  process.env.SUPABASE_SERVICE_ROLE_KEY
+  process.env.SUPABASE_SERVICE_ROLE_KEY,
+  {
+    auth: {
+      persistSession: false
+    },
+    realtime: {
+      websocket: ws
+    }
+  }
 );
 
 // ─── Middleware ────────────────────────────────────────────────────────────────
-const corsOrigins = process.env.CORS_ORIGINS
+const rawOrigins = process.env.CORS_ORIGINS
   ? process.env.CORS_ORIGINS.split(',')
   : ['http://localhost:5173', 'https://your-app.pages.dev'];
 
+// Clean origins by trimming and removing trailing slashes for robust matching
+const corsOrigins = rawOrigins.map(origin => origin.trim().replace(/\/$/, ''));
+
 app.use(cors({
   origin: (origin, callback) => {
-    if (!origin || corsOrigins.includes(origin) || corsOrigins.includes('*')) {
+    const cleanOrigin = origin ? origin.trim().replace(/\/$/, '') : '';
+    if (!origin || corsOrigins.includes(cleanOrigin) || corsOrigins.includes('*')) {
       callback(null, true);
     } else {
       callback(new Error('Not allowed by CORS'));
