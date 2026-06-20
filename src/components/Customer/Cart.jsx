@@ -41,7 +41,6 @@ const Cart = ({
           className="customer-bottom-cart-bar" 
           onClick={() => setIsCartOpen(true)} 
           aria-label="View Cart"
-          style={{ position: 'relative' }}
         >
           <div className="customer-cart-info-left">
             <div className="customer-cart-icon-circle">
