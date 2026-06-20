@@ -606,11 +606,13 @@ const isMockMode = typeof window !== 'undefined' && (
   window.location.search.includes('mock=true') || 
   navigator.webdriver || 
   navigator.userAgent.includes('HeadlessChrome') ||
-  window.__testsprite_mock === true
+  window.__testsprite_mock === true ||
+  !supabaseUrl ||
+  supabaseUrl.includes('placeholder-never-use')
 );
 
 if (isMockMode) {
-  console.log('--- RUNNING SUPABASE IN MOCK MODE ---');
+  console.log('--- RUNNING SUPABASE IN MOCK MODE (Fallback triggered if credentials missing) ---');
 }
 
 export const supabase = isMockMode ? mockSupabase : realSupabase;
