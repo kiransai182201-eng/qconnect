@@ -125,6 +125,21 @@ const Dashboard = () => {
     }).format(val);
   };
 
+  const strftime = (dateStr) => {
+    const d = new Date(dateStr);
+    const dd = String(d.getDate()).padStart(2, '0');
+    const mm = String(d.getMonth() + 1).padStart(2, '0');
+    const yyyy = d.getFullYear();
+    let hours = d.getHours();
+    const minutes = String(d.getMinutes()).padStart(2, '0');
+    const seconds = String(d.getSeconds()).padStart(2, '0');
+    const ampm = hours >= 12 ? 'PM' : 'AM';
+    hours = hours % 12;
+    hours = hours ? hours : 12;
+    const hh = String(hours).padStart(2, '0');
+    return `${dd}/${mm}/${yyyy} ${hh}:${minutes}:${seconds} ${ampm}`;
+  };
+
   return (
     <div className="dashboard-content-wrapper">
       {/* Welcome Section */}
@@ -257,7 +272,7 @@ const Dashboard = () => {
                     )}
                   </div>
                   <p style={{ margin: 0, fontSize: '0.75rem', color: 'var(--color-text-muted)' }}>
-                    Table {fb.table_number || '?'} • {new Date(fb.created_at).toLocaleDateString()}
+                    Table {fb.table_number || '?'} • {strftime(fb.created_at)}
                   </p>
                 </div>
                 <ChevronRight size={20} color="var(--color-text-muted)" />

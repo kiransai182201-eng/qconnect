@@ -1,6 +1,9 @@
--- PostgreSQL Function to place a secure order
--- Prevents clients from altering the price of items
--- Validates item availability before accepting orders
+-- Migration: Add availability validation to place_secure_order
+-- This updates the RPC function to check item availability before creating orders.
+-- Run this in Supabase SQL Editor to apply the change.
+
+-- Simply run the updated function from secure_place_order.sql:
+-- The CREATE OR REPLACE will update the existing function in-place.
 
 CREATE OR REPLACE FUNCTION place_secure_order(
     p_shop_id UUID,

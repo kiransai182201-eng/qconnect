@@ -495,7 +495,7 @@ const mockSupabase = {
       db.users.push(newUser);
       saveMockDB(db);
       localStorage.setItem('supabase_mock_session', JSON.stringify({ user: newUser }));
-      return { data: { user: newUser }, error: null };
+      return { data: { user: newUser, session: { access_token: 'mock-token', user: newUser } }, error: null };
     },
 
     signInWithPassword: async ({ email, password }) => {
@@ -581,7 +581,7 @@ const mockSupabase = {
 
   removeChannel: () => {},
 
-  rpc: async (funcName) => {
+  rpc: async (funcName, args) => {
     if (funcName === 'delete_user_account') {
       const sessionStr = localStorage.getItem('supabase_mock_session');
       if (sessionStr) {
@@ -592,6 +592,73 @@ const mockSupabase = {
       }
       localStorage.removeItem('supabase_mock_session');
       return { error: null };
+    }
+    if (funcName === 'place_secure_order') {
+      const db = getMockDB();
+      const shopId = args?.p_shop_id;
+      const tableNumber = args?.p_table_number;
+      const tableId = args?.p_table_id;
+      const notes = args?.p_notes;
+      const cartItems = args?.p_cart_items || [];
+
+      // Check item availability
+      const unavailable = [];
+      cartItems.forEach(item => {
+        const dbItem = db.items.find(i => i.id === item.item_id);
+        if (dbItem && dbItem.is_available === false) {
+          unavailable.push({ item_id: item.item_id, name: dbItem.name });
+        }
+      });
+
+      if (unavailable.length > 0) {
+        return {
+          data: {
+            error: true,
+            error_type: 'items_unavailable',
+            message: 'Some items in your cart are no longer available.',
+            unavailable_items: unavailable
+          },
+          error: null
+        };
+      }
+
+      // Calculate total amount
+      let totalAmount = 0;
+      const orderItems = [];
+      cartItems.forEach(item => {
+        const dbItem = db.items.find(i => i.id === item.item_id);
+        if (dbItem) {
+          totalAmount += dbItem.price * item.quantity;
+          orderItems.push({
+            id: 'order-item-' + Math.random().toString(36).substr(2, 9),
+            item_id: item.item_id,
+            item_name: dbItem.name,
+            quantity: item.quantity,
+            price_at_time: dbItem.price
+          });
+        }
+      });
+
+      const newOrder = {
+        id: 'order-' + Math.random().toString(36).substr(2, 9),
+        shop_id: shopId,
+        order_number: 'ORD-' + Date.now().toString().slice(-6),
+        table_number: tableNumber,
+        table_id: tableId,
+        total_amount: totalAmount,
+        status: 'pending',
+        notes: notes,
+        created_at: new Date().toISOString(),
+        order_items: orderItems
+      };
+
+      db.orders.push(newOrder);
+      orderItems.forEach(oi => {
+        db.order_items.push({ ...oi, order_id: newOrder.id });
+      });
+      saveMockDB(db);
+
+      return { data: newOrder, error: null };
     }
     return { error: null };
   }

@@ -1,5 +1,5 @@
 import React from 'react';
-import { ShoppingBag, X } from 'lucide-react';
+import { ShoppingBag, X, AlertTriangle } from 'lucide-react';
 
 const Cart = ({ 
   cart, 
@@ -25,25 +25,32 @@ const Cart = ({
 
   const mockSavings = Math.max(10, Math.round(getCartTotal() * 0.1));
 
+  // Check if any cart items are currently unavailable
+  const unavailableCartItems = Object.keys(cart).filter(itemId => {
+    const item = items.find(i => i.id === itemId);
+    return item && item.is_available === false;
+  });
+  const hasUnavailableItems = unavailableCartItems.length > 0;
+
   return (
     <>
       {/* Bottom Screen Cart Banner */}
       {getCartItemCount() > 0 && !isCartOpen && (
         <div 
+          id="view-cart-bar-btn"
           className="customer-bottom-cart-bar" 
           onClick={() => setIsCartOpen(true)} 
           aria-label="View Cart"
+          style={{ position: 'relative' }}
         >
           <div className="customer-cart-info-left">
             <div className="customer-cart-icon-circle">
               <ShoppingBag size={18} />
-              <span className="customer-cart-badge-count">
-                {getCartItemCount()}
-              </span>
+              <span className="customer-cart-badge-count" data-count={getCartItemCount()}></span>
             </div>
             <div>
               <div className="customer-cart-text-main">
-                {getCartItemCount()} {getCartItemCount() === 1 ? 'Item' : 'Items'} | ₹{getCartTotal()}
+                {getCartItemCount()} {getCartItemCount() === 1 ? 'ITEM' : 'ITEMS'} | ₹{getCartTotal()}
               </div>
               <div className="customer-cart-text-sub">
                 You save ₹{mockSavings} on this order
@@ -140,7 +147,7 @@ const Cart = ({
                     const item = items.find(i => i.id === itemId);
                     if (!item) return null;
                     return (
-                      <div key={item.id} style={{ display: 'flex', alignItems: 'center', paddingBottom: '1rem', borderBottom: '1px solid var(--pill-border)', gap: '12px' }}>
+                      <div key={item.id} style={{ display: 'flex', alignItems: 'center', paddingBottom: '1rem', borderBottom: '1px solid var(--pill-border)', gap: '12px', position: 'relative', opacity: item.is_available === false ? 0.5 : 1 }}>
                         {item.image_url ? (
                           <img src={item.image_url} alt={item.name} style={{ width: '48px', height: '48px', borderRadius: '10px', objectFit: 'cover', flexShrink: 0 }} />
                         ) : (
@@ -174,6 +181,28 @@ const Cart = ({
                         <div style={{ minWidth: '50px', textAlign: 'right', fontWeight: '800', color: 'var(--text-primary)', fontSize: '0.95rem' }}>
                           ₹{item.price * cart[itemId]}
                         </div>
+                        {/* Unavailable warning tag */}
+                        {item.is_available === false && (
+                          <div style={{
+                            position: 'absolute', top: 0, left: 0, right: 0, bottom: 0,
+                            backgroundColor: 'rgba(7, 10, 19, 0.5)',
+                            borderRadius: '12px',
+                            display: 'flex', alignItems: 'center', justifyContent: 'center',
+                            gap: '6px'
+                          }}>
+                            <span style={{
+                              backgroundColor: 'rgba(239, 68, 68, 0.15)',
+                              border: '1px solid rgba(239, 68, 68, 0.25)',
+                              color: '#ef4444',
+                              padding: '4px 12px',
+                              borderRadius: '20px',
+                              fontSize: '0.72rem',
+                              fontWeight: '800',
+                              textTransform: 'uppercase',
+                              letterSpacing: '0.03em'
+                            }}>Unavailable</span>
+                          </div>
+                        )}
                       </div>
                     );
                   })}
@@ -186,6 +215,7 @@ const Cart = ({
                     Add a note (optional)
                   </label>
                   <textarea 
+                    id="order-notes"
                     value={orderNotes}
                     onChange={(e) => setOrderNotes(e.target.value)}
                     placeholder="No onion, less sugar..."
@@ -234,17 +264,18 @@ const Cart = ({
                 </div>
 
                 <button 
+                  id="place-order-btn"
                   onClick={placeOrder}
-                  disabled={Object.keys(cart).length === 0 || isPlacingOrder}
+                  disabled={Object.keys(cart).length === 0 || isPlacingOrder || hasUnavailableItems}
                   className="customer-add-btn"
                   style={{
                     width: '100%',
                     padding: '1rem',
                     borderRadius: '16px',
-                    backgroundColor: 'var(--color-accent)',
+                    backgroundColor: hasUnavailableItems ? 'var(--text-muted)' : 'var(--color-accent)',
                     color: 'white',
-                    cursor: isPlacingOrder ? 'not-allowed' : 'pointer',
-                    boxShadow: '0 8px 24px rgba(var(--color-accent-rgb), 0.3)',
+                    cursor: (isPlacingOrder || hasUnavailableItems) ? 'not-allowed' : 'pointer',
+                    boxShadow: hasUnavailableItems ? 'none' : '0 8px 24px rgba(var(--color-accent-rgb), 0.3)',
                     display: 'flex',
                     justifyContent: 'center',
                     alignItems: 'center',

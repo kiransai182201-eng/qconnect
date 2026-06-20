@@ -33,11 +33,11 @@ const ActiveOrderTracker = ({ activeOrder, setActiveOrder, isDarkMode }) => {
   const statusInfo = statusMap[currentStatus] || statusMap.pending;
 
   const steps = [
-    { key: 'placed', label: 'Order Placed', desc: 'Order sent successfully.', offset: 0 },
+    { key: 'placed', label: 'Order Received', desc: 'Order sent successfully.', offset: 0 },
     { key: 'confirmed', label: 'Confirmed', desc: 'Confirmed by kitchen.', offset: 1 },
     { key: 'preparing', label: 'Preparing', desc: 'Chef is preparing your meal.', offset: 4 },
-    { key: 'ready', label: 'Ready', desc: 'Order is ready to serve.', offset: 12 },
-    { key: 'served', label: 'Served', desc: 'Delivered to your table.', offset: 15 }
+    { key: 'ready', label: 'Ready to Serve', desc: 'Order is ready to serve.', offset: 12 },
+    { key: 'served', label: 'Delivered', desc: 'Delivered to your table.', offset: 15 }
   ];
 
   const getStepState = (stepKey) => {
@@ -125,7 +125,7 @@ const ActiveOrderTracker = ({ activeOrder, setActiveOrder, isDarkMode }) => {
         {/* Card Header */}
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.75rem' }}>
           <h2 style={{ margin: 0, fontSize: '1.35rem', fontWeight: '800', fontFamily: 'var(--font-heading)', color: 'var(--text-primary)' }}>
-            Active Order
+            Live Progress
           </h2>
           <button 
             onClick={() => setActiveOrder(null)}
@@ -191,6 +191,38 @@ const ActiveOrderTracker = ({ activeOrder, setActiveOrder, isDarkMode }) => {
               </div>
             );
           })}
+        </div>
+
+        {/* Items Ordered Section */}
+        <div style={{ marginTop: '1.75rem', paddingTop: '1.5rem', borderTop: '1px solid var(--pill-border)' }}>
+          <h3 style={{ margin: '0 0 1rem 0', fontSize: '1rem', fontWeight: '800', color: 'var(--text-primary)' }}>
+            Items Ordered
+          </h3>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.85rem' }}>
+            {activeOrder.order_items && activeOrder.order_items.map(item => (
+              <div key={item.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <div>
+                  <p style={{ margin: 0, fontWeight: '700', fontSize: '0.88rem', color: 'var(--text-primary)' }}>{item.item_name}</p>
+                  <p style={{ margin: '2px 0 0 0', fontSize: '0.78rem', color: 'var(--text-secondary)' }}>₹{item.price_at_time}</p>
+                </div>
+                <div style={{ 
+                  fontWeight: '800', 
+                  fontSize: '0.82rem',
+                  backgroundColor: 'rgba(255, 255, 255, 0.05)', 
+                  border: '1px solid var(--pill-border)',
+                  color: 'var(--text-primary)', 
+                  padding: '4px 10px', 
+                  borderRadius: '12px' 
+                }}>
+                  x{item.quantity}
+                </div>
+              </div>
+            ))}
+          </div>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '1.25rem', paddingTop: '1rem', borderTop: '1px dashed var(--pill-border)' }}>
+            <span style={{ fontWeight: '700', fontSize: '0.88rem', color: 'var(--text-secondary)' }}>Total Amount</span>
+            <span style={{ fontSize: '1.25rem', fontWeight: '800', color: 'var(--text-primary)', fontFamily: 'var(--font-heading)' }}>₹{activeOrder.total_amount}</span>
+          </div>
         </div>
 
         {/* Help Button */}

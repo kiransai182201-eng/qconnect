@@ -20,6 +20,7 @@ const MenuBuilder = () => {
   const [newItem, setNewItem] = useState({ name: '', price: '', description: '' });
   const [editingItemId, setEditingItemId] = useState(null);
   const [itemToDelete, setItemToDelete] = useState(null);
+  const [categoryToDelete, setCategoryToDelete] = useState(null);
 
   useEffect(() => {
     if (!shop) return;
@@ -56,6 +57,29 @@ const MenuBuilder = () => {
     } else if (!shop?.id) {
       alert("Error: Shop ID is missing. Please make sure you completed the 'Shop Details' step first.");
     }
+  };
+
+  const deleteCategory = async (catId) => {
+    // Delete all items in this category first
+    const { error: itemsError } = await supabase.from('items').delete().eq('category_id', catId);
+    if (itemsError) {
+      alert(`Failed to delete items: ${itemsError.message}`);
+      return;
+    }
+    // Delete the category
+    const { error: catError } = await supabase.from('categories').delete().eq('id', catId);
+    if (catError) {
+      alert(`Failed to delete category: ${catError.message}`);
+      return;
+    }
+    // Update local state
+    setItems(prev => prev.filter(item => item.category_id !== catId));
+    setCategories(prev => prev.filter(c => c.id !== catId));
+    if (activeCategoryId === catId) {
+      const remaining = categories.filter(c => c.id !== catId);
+      setActiveCategoryId(remaining.length > 0 ? remaining[0].id : null);
+    }
+    setCategoryToDelete(null);
   };
 
   const addItem = async (e) => {
@@ -192,20 +216,42 @@ const MenuBuilder = () => {
 
           <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', marginTop: '1rem' }}>
             {categories.map(cat => (
-              <button 
+              <div 
                 key={cat.id}
-                onClick={() => setActiveCategoryId(cat.id)}
                 style={{ 
-                  display: 'flex', alignItems: 'center', gap: '12px', padding: '12px 16px', borderRadius: '12px',
+                  display: 'flex', alignItems: 'center', borderRadius: '12px',
                   background: activeCategoryId === cat.id ? 'rgba(255, 109, 0, 0.1)' : 'transparent',
                   border: `1px solid ${activeCategoryId === cat.id ? 'var(--color-accent)' : 'transparent'}`,
-                  color: activeCategoryId === cat.id ? 'var(--color-accent)' : 'var(--color-text-main)',
-                  transition: 'var(--transition-fast)', textAlign: 'left'
+                  transition: 'var(--transition-fast)'
                 }}
               >
-                {cat.icon === 'coffee' ? <Coffee size={18} /> : <LayoutGrid size={18} />}
-                <span style={{ fontWeight: '500' }}>{cat.name}</span>
-              </button>
+                <button 
+                  onClick={() => setActiveCategoryId(cat.id)}
+                  style={{ 
+                    display: 'flex', alignItems: 'center', gap: '12px', padding: '12px 16px', borderRadius: '12px 0 0 12px',
+                    background: 'transparent', border: 'none', flex: 1,
+                    color: activeCategoryId === cat.id ? 'var(--color-accent)' : 'var(--color-text-main)',
+                    transition: 'var(--transition-fast)', textAlign: 'left', cursor: 'pointer'
+                  }}
+                >
+                  {cat.icon === 'coffee' ? <Coffee size={18} /> : <LayoutGrid size={18} />}
+                  <span style={{ fontWeight: '500' }}>{cat.name}</span>
+                </button>
+                <button
+                  onClick={(e) => { e.stopPropagation(); setCategoryToDelete(cat); }}
+                  title="Delete category"
+                  style={{ 
+                    background: 'transparent', border: 'none', color: 'var(--color-text-muted)', 
+                    cursor: 'pointer', padding: '8px', borderRadius: '0 12px 12px 0',
+                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    transition: 'var(--transition-fast)'
+                  }}
+                  onMouseOver={e => { e.currentTarget.style.color = '#EF5350'; e.currentTarget.style.background = 'rgba(239, 83, 80, 0.1)'; }}
+                  onMouseOut={e => { e.currentTarget.style.color = 'var(--color-text-muted)'; e.currentTarget.style.background = 'transparent'; }}
+                >
+                  <Trash2 size={15} />
+                </button>
+              </div>
             ))}
           </div>
         </div>
@@ -338,6 +384,44 @@ const MenuBuilder = () => {
                   onMouseOut={e => e.currentTarget.style.opacity = '1'}
                 >
                   {t.deleteItem}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Delete Category Confirmation Modal */}
+      {categoryToDelete && (
+        <div style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 100, padding: '1rem' }}>
+          <div className="glass-panel" style={{ borderRadius: '1.5rem', width: '100%', maxWidth: '400px', overflow: 'hidden', boxShadow: '0 20px 25px -5px rgba(0, 0, 0, 0.3)' }}>
+            <div style={{ padding: '1.5rem', borderBottom: '1px solid var(--glass-border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', backgroundColor: 'rgba(239, 83, 80, 0.1)' }}>
+              <h3 style={{ margin: 0, fontSize: '1.25rem', fontWeight: 'bold', color: '#EF5350' }}>Delete Category</h3>
+            </div>
+            <div style={{ padding: '1.5rem' }}>
+              <p style={{ margin: '0 0 0.75rem 0', color: 'var(--color-text-main)', fontSize: '1rem' }}>
+                Are you sure you want to delete <strong>"{categoryToDelete.name}"</strong>?
+              </p>
+              <p style={{ margin: '0 0 1.5rem 0', color: '#EF5350', fontSize: '0.88rem', fontWeight: '600' }}>
+                ⚠️ All items in this category will also be permanently deleted.
+              </p>
+              
+              <div style={{ display: 'flex', gap: '1rem' }}>
+                <button 
+                  onClick={() => setCategoryToDelete(null)}
+                  style={{ flex: 1, background: 'transparent', color: 'var(--color-text-main)', border: '1px solid var(--glass-border)', padding: '12px', borderRadius: '8px', fontWeight: '600', cursor: 'pointer', transition: 'var(--transition-fast)' }} 
+                  onMouseOver={e => e.currentTarget.style.background = 'var(--glass-border)'} 
+                  onMouseOut={e => e.currentTarget.style.background = 'transparent'}
+                >
+                  {t.cancel}
+                </button>
+                <button 
+                  onClick={() => deleteCategory(categoryToDelete.id)}
+                  style={{ flex: 1, background: '#EF5350', color: 'white', border: 'none', padding: '12px', borderRadius: '8px', fontWeight: '600', cursor: 'pointer', transition: 'var(--transition-fast)' }} 
+                  onMouseOver={e => e.currentTarget.style.opacity = '0.9'} 
+                  onMouseOut={e => e.currentTarget.style.opacity = '1'}
+                >
+                  Delete Category
                 </button>
               </div>
             </div>

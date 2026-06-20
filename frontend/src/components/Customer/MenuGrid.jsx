@@ -58,26 +58,32 @@ const MenuGrid = ({
     <>
       <nav className="customer-pill-container customer-no-scrollbar" aria-label="Menu categories">
         <button 
+          id="category-all-btn"
           className={`customer-pill ${activeCategoryId === 'all' ? 'active' : ''}`} 
           onClick={() => setActiveCategoryId('all')}
         >
           All
         </button>
-        {categories.map(cat => (
-          <button 
-            key={cat.id} 
-            className={`customer-pill ${activeCategoryId === cat.id ? 'active' : ''}`}
-            onClick={() => setActiveCategoryId(cat.id)}
-          >
-            <span style={{ fontSize: '1rem' }}>{getIcon(cat.name, 'category')}</span> {cat.name}
-          </button>
-        ))}
+        {categories.map(cat => {
+          const catSlug = cat.id.startsWith('cat-') ? cat.id.slice(4) : cat.id;
+          return (
+            <button 
+              key={cat.id} 
+              id={`category-cat-${catSlug}-btn`}
+              className={`customer-pill ${activeCategoryId === cat.id ? 'active' : ''}`}
+              onClick={() => setActiveCategoryId(cat.id)}
+            >
+              <span style={{ fontSize: '1rem' }}>{getIcon(cat.name, 'category')}</span> {cat.name}
+            </button>
+          );
+        })}
       </nav>
 
       <div className="customer-search-container">
         <div className="customer-search-bar">
           <Search size={18} color="var(--text-secondary)" style={{ flexShrink: 0 }} />
           <input 
+            id="menu-search-input"
             type="text" 
             placeholder="Search for dishes, tea, coffee..." 
             value={searchQuery}
@@ -168,6 +174,7 @@ const MenuGrid = ({
                           <span className="customer-item-price">₹{item.price}</span>
                           {qty === 0 && (
                             <button 
+                              id={`add-to-cart-${item.id}`}
                               className="customer-card-add-btn" 
                               onClick={() => addToCart(item.id)}
                               disabled={!item.is_available}

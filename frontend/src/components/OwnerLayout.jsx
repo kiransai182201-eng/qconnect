@@ -299,6 +299,7 @@ const OwnerLayout = ({ activeTab }) => {
             const isActive = currentTab === item.id;
             return (
               <button
+                key={item.id}
                 className={`sidebar-nav-item ${currentTab === item.id ? 'active' : ''}`}
                 onClick={() => navigate(item.path)}
                 aria-label={`Navigate to ${item.label}`}

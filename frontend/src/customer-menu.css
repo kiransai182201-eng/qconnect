@@ -810,3 +810,7 @@
 @keyframes spin {
   to { transform: rotate(360deg); }
 }
+
+.customer-cart-badge-count::after {
+  content: attr(data-count);
+}

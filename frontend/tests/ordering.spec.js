@@ -17,15 +17,15 @@ test.describe('Customer Ordering & Interaction Flow', () => {
 
   test('should filter menu items by active category and search input', async ({ page }) => {
     // Verify initial item list contains Margherita Pizza
-    await expect(page.locator('text=Margherita Pizza')).toBeVisible();
+    await expect(page.locator('.customer-item-title', { hasText: 'Margherita Pizza' })).toBeVisible();
 
     // Type query in search bar
     await page.fill('#menu-search-input', 'Pizza');
-    await expect(page.locator('text=Margherita Pizza')).toBeVisible();
+    await expect(page.locator('.customer-item-title', { hasText: 'Margherita Pizza' })).toBeVisible();
 
     // Type query that matches nothing
     await page.fill('#menu-search-input', 'Burger');
-    await expect(page.locator('text=Margherita Pizza')).not.toBeVisible();
+    await expect(page.locator('.customer-item-title', { hasText: 'Margherita Pizza' })).not.toBeVisible();
   });
 
   test('should add items to cart, modify quantity, and place order', async ({ page }) => {
@@ -46,7 +46,7 @@ test.describe('Customer Ordering & Interaction Flow', () => {
     // Should render Live Progress / Order Status screen
     await expect(page.locator('text=Live Progress')).toBeVisible();
     await expect(page.locator('text=Order Received')).toBeVisible();
-    await expect(page.locator('text=Margherita Pizza')).toBeVisible();
+    await expect(page.locator('text=Margherita Pizza').first()).toBeVisible();
   });
 
   test('should rate limit waiter calls client-side (cooldown)', async ({ page }) => {
