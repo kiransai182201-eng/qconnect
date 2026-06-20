@@ -1,7 +1,46 @@
-import React from 'react';
-import { Search } from 'lucide-react';
+import React, { useState } from 'react';
+import { Search, SlidersHorizontal, Heart } from 'lucide-react';
 
-const MenuGrid = ({ categories, items, activeCategoryId, setActiveCategoryId, searchQuery, setSearchQuery, addToCart, cart, isDarkMode, t, getIcon }) => {
+const isVegItem = (itemName) => {
+  const lower = itemName.toLowerCase();
+  if (lower.includes('chicken') || lower.includes('egg') || lower.includes('meat') || lower.includes('fish') || lower.includes('mutton') || lower.includes('pork') || lower.includes('nonveg') || lower.includes('non-veg')) {
+    return false;
+  }
+  return true; // Default to veg
+};
+
+const getItemBadge = (itemName) => {
+  const lower = itemName.toLowerCase();
+  if (lower.includes('masala') || lower.includes('lemon') || lower.includes('bestseller')) {
+    return 'bestseller';
+  }
+  if (lower.includes('ginger') || lower.includes('popular') || lower.includes('tea')) {
+    // Only give ginger or designated tea popular status to match layout
+    if (lower.includes('ginger') || lower.includes('popular')) return 'popular';
+  }
+  return null;
+};
+
+const MenuGrid = ({ 
+  categories, 
+  items, 
+  activeCategoryId, 
+  setActiveCategoryId, 
+  searchQuery, 
+  setSearchQuery, 
+  addToCart, 
+  removeFromCart, 
+  cart, 
+  isDarkMode, 
+  t, 
+  getIcon 
+}) => {
+  const [favorites, setFavorites] = useState({});
+
+  const toggleFavorite = (itemId) => {
+    setFavorites(prev => ({ ...prev, [itemId]: !prev[itemId] }));
+  };
+
   const filteredItems = items.filter(item => {
     const matchesSearch = item.name.toLowerCase().includes(searchQuery.toLowerCase()) || 
                           (item.description && item.description.toLowerCase().includes(searchQuery.toLowerCase()));
@@ -22,7 +61,7 @@ const MenuGrid = ({ categories, items, activeCategoryId, setActiveCategoryId, se
           className={`customer-pill ${activeCategoryId === 'all' ? 'active' : ''}`} 
           onClick={() => setActiveCategoryId('all')}
         >
-          All Items
+          All
         </button>
         {categories.map(cat => (
           <button 
@@ -30,72 +69,134 @@ const MenuGrid = ({ categories, items, activeCategoryId, setActiveCategoryId, se
             className={`customer-pill ${activeCategoryId === cat.id ? 'active' : ''}`}
             onClick={() => setActiveCategoryId(cat.id)}
           >
-            {getIcon(cat.name, 'category')} {cat.name}
+            <span style={{ fontSize: '1rem' }}>{getIcon(cat.name, 'category')}</span> {cat.name}
           </button>
         ))}
       </nav>
 
-      <div style={{ padding: '0 1rem 1rem 1rem' }}>
-        <div className="customer-search-bar" style={{ backgroundColor: isDarkMode ? '#1e293b' : 'white', border: isDarkMode ? '1px solid #334155' : '1px solid #e5e7eb' }}>
-          <Search size={20} color={isDarkMode ? '#94a3b8' : '#9ca3af'} />
+      <div className="customer-search-container">
+        <div className="customer-search-bar">
+          <Search size={18} color="var(--text-secondary)" style={{ flexShrink: 0 }} />
           <input 
             type="text" 
-            placeholder={t.searchItems} 
+            placeholder="Search for dishes, tea, coffee..." 
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            style={{ color: isDarkMode ? '#f8fafc' : '#1a1a1a' }}
             aria-label="Search menu items"
           />
+          <SlidersHorizontal size={18} color="var(--text-secondary)" style={{ flexShrink: 0, cursor: 'pointer' }} />
         </div>
       </div>
 
-      <main className="customer-menu-grid">
+      <main style={{ padding: '0 0 3rem 0' }}>
         {Object.keys(itemsByCategory).length === 0 ? (
-          <div style={{ textAlign: 'center', padding: '3rem 1rem', color: isDarkMode ? '#94a3b8' : '#6b7280', gridColumn: '1 / -1' }}>
-            <p style={{ fontSize: '1.2rem', marginBottom: '0.5rem' }}>No items found</p>
-            <p style={{ fontSize: '0.9rem' }}>Try adjusting your search or category filter</p>
+          <div style={{ textAlign: 'center', padding: '4rem 1.25rem', color: 'var(--text-secondary)' }}>
+            <p style={{ fontSize: '1.25rem', fontWeight: '700', marginBottom: '0.5rem', fontFamily: 'var(--font-heading)' }}>No items found</p>
+            <p style={{ fontSize: '0.9rem', opacity: 0.8 }}>Try adjusting your search or category filter</p>
           </div>
         ) : (
           categories.filter(cat => itemsByCategory[cat.id]).map(cat => (
-            <div key={cat.id} style={{ gridColumn: '1 / -1', marginBottom: '1.5rem' }}>
-              <h2 className="customer-category-title" style={{ color: isDarkMode ? '#f8fafc' : '#1a1a1a' }}>{cat.name}</h2>
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(160px, 1fr))', gap: '1rem' }}>
+            <div key={cat.id} className="customer-category-section">
+              <div className="customer-category-header">
+                <h2 className="customer-category-title">{cat.name}</h2>
+                <div className="customer-category-line" />
+              </div>
+              <div className="customer-menu-grid">
                 {itemsByCategory[cat.id].map(item => {
                   const qty = cart[item.id] || 0;
+                  const isVeg = isVegItem(item.name);
+                  const badge = getItemBadge(item.name);
+                  const isFav = !!favorites[item.id];
+                  
                   return (
-                    <div key={item.id} className="customer-item-card customer-custom-shadow" style={{ backgroundColor: isDarkMode ? '#1e293b' : 'white', border: isDarkMode ? '1px solid #334155' : 'none', opacity: item.is_available ? 1 : 0.6 }}>
-                      <div className="customer-item-image-placeholder">
-                        {item.image_url ? (
-                          <img src={item.image_url} alt={item.name} style={{ width: '100%', height: '100%', objectFit: 'cover' }} loading="lazy" />
-                        ) : (
-                          <span style={{ fontSize: '2.5rem' }}>{getIcon(item.name, 'item')}</span>
+                    <div 
+                      key={item.id} 
+                      className="customer-item-card"
+                      style={{ opacity: item.is_available ? 1 : 0.6 }}
+                    >
+                      <div className="customer-item-icon-wrapper">
+                        {/* Bestseller / Popular Badge overlay */}
+                        {badge === 'bestseller' && (
+                          <div className="customer-card-badge customer-card-badge-bestseller">
+                            ★ Bestseller
+                          </div>
                         )}
+                        {badge === 'popular' && (
+                          <div className="customer-card-badge customer-card-badge-popular">
+                            ✦ Popular
+                          </div>
+                        )}
+
+                        {/* Heart Wishlist Overlay */}
+                        <button 
+                          className={`customer-card-heart ${isFav ? 'active' : ''}`}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            toggleFavorite(item.id);
+                          }}
+                          aria-label={isFav ? "Remove from favorites" : "Add to favorites"}
+                        >
+                          <Heart size={15} fill={isFav ? "#ef4444" : "transparent"} color={isFav ? "#ef4444" : "currentColor"} />
+                        </button>
+
+                        {item.image_url ? (
+                          <img src={item.image_url} alt={item.name} loading="lazy" />
+                        ) : (
+                          <span>{getIcon(item.name, 'item')}</span>
+                        )}
+                        
                         {!item.is_available && (
-                          <div style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'white', fontWeight: 'bold', fontSize: '0.85rem' }}>
-                            OUT OF STOCK
+                          <div className="customer-item-out-overlay">
+                            Out of stock
                           </div>
                         )}
                       </div>
+                      
                       <div className="customer-item-content">
-                        <h3 className="customer-item-title" style={{ color: isDarkMode ? '#f8fafc' : '#1a1a1a' }}>{item.name}</h3>
-                        {item.description && <p className="customer-item-desc" style={{ color: isDarkMode ? '#94a3b8' : '#6b7280' }}>{item.description}</p>}
-                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 'auto' }}>
-                          <span className="customer-item-price" style={{ color: isDarkMode ? '#f8fafc' : '#1a1a1a' }}>₹{item.price}</span>
-                          <button 
-                            className="customer-add-btn" 
-                            onClick={() => addToCart(item.id)}
-                            disabled={!item.is_available}
-                            style={{ 
-                              opacity: !item.is_available ? 0.5 : 1, 
-                              cursor: !item.is_available ? 'not-allowed' : 'pointer',
-                              backgroundColor: qty > 0 ? (isDarkMode ? '#334155' : '#f3f4f6') : '#ff6b35',
-                              color: qty > 0 ? (isDarkMode ? '#f8fafc' : '#ff6b35') : 'white'
-                            }}
-                            aria-label={`Add ${item.name} to cart`}
-                          >
-                            {qty > 0 ? `+ ${qty}` : 'ADD'}
-                          </button>
+                        <div className="customer-item-header">
+                          <div className={`customer-veg-indicator ${isVeg ? 'veg' : 'non-veg'}`}>
+                            <div className="customer-veg-dot"></div>
+                          </div>
+                          <h3 className="customer-item-title" title={item.name}>{item.name}</h3>
                         </div>
+                        
+                        {item.description && (
+                          <p className="customer-item-desc">{item.description}</p>
+                        )}
+                        
+                        <div className="customer-price-row">
+                          <span className="customer-item-price">₹{item.price}</span>
+                          {qty === 0 && (
+                            <button 
+                              className="customer-card-add-btn" 
+                              onClick={() => addToCart(item.id)}
+                              disabled={!item.is_available}
+                              aria-label={`Add ${item.name} to order`}
+                            >
+                              + Add
+                            </button>
+                          )}
+                        </div>
+
+                        {qty > 0 && (
+                          <div className="customer-card-counter-container">
+                            <div className="customer-card-counter">
+                              <button 
+                                onClick={() => removeFromCart(item.id)}
+                                aria-label={`Decrease quantity of ${item.name}`}
+                              >
+                                -
+                              </button>
+                              <span>{qty}</span>
+                              <button 
+                                onClick={() => addToCart(item.id)}
+                                aria-label={`Increase quantity of ${item.name}`}
+                              >
+                                +
+                              </button>
+                            </div>
+                          </div>
+                        )}
                       </div>
                     </div>
                   );
