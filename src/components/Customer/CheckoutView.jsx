@@ -15,7 +15,7 @@ const CheckoutView = ({
   isDarkMode 
 }) => {
   const [selectedMethod, setSelectedMethod] = useState('Pay After Meal');
-  const [manualTableNumber, setManualTableNumber] = useState(tableNumber || '');
+  const [manualTableNumber, setManualTableNumber] = useState(tableNumber != null ? String(tableNumber) : '');
 
   const paymentMethods = [
     //     {
@@ -39,12 +39,13 @@ const CheckoutView = ({
   ];
 
   const handlePlaceOrder = () => {
+    const trimmedTable = String(manualTableNumber ?? '').trim();
     // Save table number back to parent if updated
-    if (manualTableNumber.trim()) {
-      setTableNumber(manualTableNumber.trim());
+    if (trimmedTable) {
+      setTableNumber(trimmedTable);
     }
     // Call placeOrder passing the selected payment method
-    placeOrder(selectedMethod, manualTableNumber.trim());
+    placeOrder(selectedMethod, trimmedTable);
   };
 
   const grandTotal = getCartTotal();

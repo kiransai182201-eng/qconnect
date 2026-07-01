@@ -151,7 +151,7 @@ const CustomerMenu = () => {
             return;
           }
           currentShop = tableData.shops;
-          setTableNumber(tableData.table_number);
+          setTableNumber(String(tableData.table_number));
           setTableId(tableData.id);
         } else {
           setLoading(false);
@@ -361,8 +361,8 @@ const CustomerMenu = () => {
       return;
     }
 
-    let finalTableNumber = customTableNumber || tableNumber;
-    if (finalTableNumber === 'Unknown' || !finalTableNumber.trim()) {
+    let finalTableNumber = String(customTableNumber || tableNumber || '').trim();
+    if (finalTableNumber === 'Unknown' || !finalTableNumber) {
       alert("Please enter your table number to place the order.");
       return;
     }

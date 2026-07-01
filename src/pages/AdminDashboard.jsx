@@ -45,9 +45,11 @@ const AdminDashboard = () => {
       setDbError(null);
     } else {
       try {
-        const [shopsRes, regsRes] = await Promise.all([
+        const [shopsRes, regsRes, ordersRes, viewsRes] = await Promise.all([
           supabase.from('shops').select('*'),
-          supabase.from('registrations').select('*')
+          supabase.from('registrations').select('*'),
+          supabase.from('orders').select('*'),
+          supabase.from('menu_views').select('*')
         ]);
         
         if (shopsRes.error) {
@@ -58,14 +60,22 @@ const AdminDashboard = () => {
           setDbError(`Registrations query failed: ${regsRes.error.message} (${regsRes.error.code})`);
           return;
         }
+        if (ordersRes.error) {
+          setDbError(`Orders query failed: ${ordersRes.error.message} (${ordersRes.error.code})`);
+          return;
+        }
+        if (viewsRes.error) {
+          setDbError(`Menu views query failed: ${viewsRes.error.message} (${viewsRes.error.code})`);
+          return;
+        }
 
         setDb({
           shops: shopsRes.data || [],
           registrations: regsRes.data || [],
           users: [], // placeholder for DB shape compatibility
           notifications: [],
-          orders: [],
-          menu_views: []
+          orders: ordersRes.data || [],
+          menu_views: viewsRes.data || []
         });
         setDbError(null);
       } catch (err) {
@@ -323,8 +333,40 @@ const AdminDashboard = () => {
   const totalShops = db.shops.length;
   const activeShops = db.shops.filter(s => s.status === 'published' && !s.holiday_mode).length;
   const pendingRegs = db.registrations.filter(r => r.status === 'PENDING').length;
-  const chartData = [18, 32, 28, 45, 52, totalShops || 60];
-  const chartMonths = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun'];
+  
+  // Calculate total revenue from all orders (except rejected ones)
+  const totalRevenue = (db.orders || [])
+    .filter(o => o.status !== 'rejected')
+    .reduce((sum, o) => sum + (parseFloat(o.total_amount) || 0), 0);
+
+  // Calculate orders placed today
+  const startOfToday = new Date();
+  startOfToday.setHours(0, 0, 0, 0);
+  const ordersToday = (db.orders || [])
+    .filter(o => new Date(o.created_at || o.submitted_at) >= startOfToday)
+    .length;
+
+  // Calculate total QR scans (views)
+  const totalViews = (db.menu_views || []).length;
+
+  // Calculate shop growth dynamically by creation month
+  const currentMonth = new Date().getMonth();
+  const monthCounts = Array(6).fill(0);
+  db.shops.forEach(shop => {
+    const date = new Date(shop.created_at || shop.submitted_at);
+    const diff = currentMonth - date.getMonth() + (12 * (new Date().getFullYear() - date.getFullYear()));
+    if (diff >= 0 && diff < 6) {
+      monthCounts[5 - diff]++;
+    }
+  });
+
+  const chartData = monthCounts.some(c => c > 0) ? monthCounts : [18, 32, 28, 45, 52, totalShops || 60];
+  const chartMonths = [];
+  const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+  for (let i = 5; i >= 0; i--) {
+    const m = (new Date().getMonth() - i + 12) % 12;
+    chartMonths.push(monthNames[m]);
+  }
   const maxChart = Math.max(...chartData, 1);
 
   // Top shops (by number of tables as proxy for size)
@@ -526,7 +568,7 @@ const AdminDashboard = () => {
           <div className="adm-kpi-icon green"><IndianRupee size={20} /></div>
           <div>
             <p className="adm-kpi-label">Revenue Monthly</p>
-            <p className="adm-kpi-value">₹24,500</p>
+            <p className="adm-kpi-value">₹{totalRevenue.toLocaleString('en-IN')}</p>
             <p className="adm-kpi-delta">▲ 18% vs last month</p>
           </div>
         </div>
@@ -537,7 +579,7 @@ const AdminDashboard = () => {
         <div className="adm-card">
           <div className="adm-card-head">
             <span className="adm-card-title">Shop Growth</span>
-            <span className="adm-card-sub">Jan – Jun 2026</span>
+            <span className="adm-card-sub">Last 6 Months</span>
           </div>
           <div className="adm-chart-wrap">
             {chartData.map((val, idx) => (
@@ -559,17 +601,17 @@ const AdminDashboard = () => {
             <div className="adm-mini-stat">
               <div className="adm-mini-icon"><QrCode size={16} /></div>
               <div style={{ flex: 1 }}>
-                <div className="adm-mini-label">QR Scans Today</div>
-                <div className="adm-mini-val">1,245</div>
-                <div className="adm-bar-track"><div className="adm-bar-fill" style={{ width: '82%' }}></div></div>
+                <div className="adm-mini-label">Total QR Scans</div>
+                <div className="adm-mini-val">{totalViews.toLocaleString('en-IN')}</div>
+                <div className="adm-bar-track"><div className="adm-bar-fill" style={{ width: `${Math.min(100, Math.round((totalViews / 500) * 100))}%` }}></div></div>
               </div>
             </div>
             <div className="adm-mini-stat">
               <div className="adm-mini-icon"><ShoppingCart size={16} /></div>
               <div style={{ flex: 1 }}>
                 <div className="adm-mini-label">Orders Today</div>
-                <div className="adm-mini-val">{db.orders.length || 456}</div>
-                <div className="adm-bar-track"><div className="adm-bar-fill" style={{ width: '60%' }}></div></div>
+                <div className="adm-mini-val">{ordersToday.toLocaleString('en-IN')}</div>
+                <div className="adm-bar-track"><div className="adm-bar-fill" style={{ width: `${Math.min(100, Math.round((ordersToday / 20) * 100))}%` }}></div></div>
               </div>
             </div>
             <div className="adm-mini-stat">
