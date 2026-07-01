@@ -1,24 +1,12 @@
 import React, { useState } from 'react';
-import { Search, SlidersHorizontal, Heart } from 'lucide-react';
+import { Search, SlidersHorizontal, Heart, Star } from 'lucide-react';
 
 const isVegItem = (itemName) => {
   const lower = itemName.toLowerCase();
   if (lower.includes('chicken') || lower.includes('egg') || lower.includes('meat') || lower.includes('fish') || lower.includes('mutton') || lower.includes('pork') || lower.includes('nonveg') || lower.includes('non-veg')) {
     return false;
   }
-  return true; // Default to veg
-};
-
-const getItemBadge = (itemName) => {
-  const lower = itemName.toLowerCase();
-  if (lower.includes('masala') || lower.includes('lemon') || lower.includes('bestseller')) {
-    return 'bestseller';
-  }
-  if (lower.includes('ginger') || lower.includes('popular') || lower.includes('tea')) {
-    // Only give ginger or designated tea popular status to match layout
-    if (lower.includes('ginger') || lower.includes('popular')) return 'popular';
-  }
-  return null;
+  return true;
 };
 
 const MenuGrid = ({ 
@@ -33,19 +21,47 @@ const MenuGrid = ({
   cart, 
   isDarkMode, 
   t, 
-  getIcon 
+  getIcon,
+  onItemClick
 }) => {
-  const [favorites, setFavorites] = useState({});
+  // Diet filter state: 'all', 'veg', 'non-veg', 'spicy'
+  const [dietFilter, setDietFilter] = useState('all');
 
-  const toggleFavorite = (itemId) => {
-    setFavorites(prev => ({ ...prev, [itemId]: !prev[itemId] }));
+  const getItemQtyInCart = (itemId) => {
+    return Object.keys(cart).reduce((total, key) => {
+      if (key === itemId || key.startsWith(`${itemId}_`)) {
+        return total + cart[key];
+      }
+      return total;
+    }, 0);
+  };
+
+  const isSpicyItem = (item) => {
+    const nameLower = item.name.toLowerCase();
+    const descLower = (item.description || '').toLowerCase();
+    return nameLower.includes('spicy') || nameLower.includes('chilli') || nameLower.includes('pepper') || nameLower.includes('masala') || nameLower.includes('ginger') ||
+           descLower.includes('spicy') || descLower.includes('chilli') || descLower.includes('pepper') || descLower.includes('masala');
   };
 
   const filteredItems = items.filter(item => {
+    // 1. Search Query
     const matchesSearch = item.name.toLowerCase().includes(searchQuery.toLowerCase()) || 
                           (item.description && item.description.toLowerCase().includes(searchQuery.toLowerCase()));
+    
+    // 2. Category Filter
     const matchesCategory = activeCategoryId === 'all' || item.category_id === activeCategoryId;
-    return matchesSearch && matchesCategory;
+    
+    // 3. Diet Filter
+    let matchesDiet = true;
+    if (dietFilter === 'veg') {
+      matchesDiet = isVegItem(item.name);
+    } else if (dietFilter === 'non-veg') {
+      matchesDiet = !isVegItem(item.name);
+    } else if (dietFilter === 'spicy') {
+      matchesDiet = isSpicyItem(item);
+    }
+
+    return matchesSearch && matchesCategory && matchesDiet;
   });
 
   const itemsByCategory = categories.reduce((acc, cat) => {
@@ -54,46 +70,87 @@ const MenuGrid = ({
     return acc;
   }, {});
 
+  const dietFilters = [
+    { id: 'all', label: 'All' },
+    { id: 'veg', label: 'Veg' },
+    { id: 'non-veg', label: 'Non-Veg' },
+    { id: 'spicy', label: 'Spicy' }
+  ];
+
   return (
     <>
-      <nav className="customer-pill-container customer-no-scrollbar" aria-label="Menu categories">
-        <button 
-          id="category-all-btn"
-          className={`customer-pill ${activeCategoryId === 'all' ? 'active' : ''}`} 
-          onClick={() => setActiveCategoryId('all')}
-        >
-          All Items
-        </button>
-        {categories.map(cat => {
-          const catSlug = cat.id.startsWith('cat-') ? cat.id.slice(4) : cat.id;
-          return (
-            <button 
-              key={cat.id} 
-              id={`category-cat-${catSlug}-btn`}
-              className={`customer-pill ${activeCategoryId === cat.id ? 'active' : ''}`}
-              onClick={() => setActiveCategoryId(cat.id)}
-            >
-              <span style={{ fontSize: '1rem' }}>{getIcon(cat.name, 'category')}</span> {cat.name}
-            </button>
-          );
-        })}
-      </nav>
-
-      <div className="customer-search-container">
-        <div className="customer-search-bar">
+      {/* Search Bar */}
+      <div className="customer-search-container" style={{ margin: '0.5rem 0' }}>
+        <div className="customer-search-bar" style={{ backgroundColor: '#1d1714', border: '1px solid rgba(255,255,255,0.03)' }}>
           <Search size={18} color="var(--text-secondary)" style={{ flexShrink: 0 }} />
           <input 
             id="menu-search-input"
             type="text" 
-            placeholder="Search menu items..." 
+            placeholder="Search truffle pasta, salmon, martini..." 
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             aria-label="Search menu items"
+            style={{ background: 'none', border: 'none', color: '#ffffff' }}
           />
           <SlidersHorizontal size={18} color="var(--text-secondary)" style={{ flexShrink: 0, cursor: 'pointer' }} />
         </div>
       </div>
 
+      {/* Horizontally Scrollable Diet / Category Filters */}
+      <nav className="customer-pill-container customer-no-scrollbar" aria-label="Dietary filters" style={{ display: 'flex', gap: '0.6rem', padding: '0.5rem 1rem' }}>
+        {dietFilters.map(filter => {
+          const isActive = dietFilter === filter.id;
+          return (
+            <button 
+              key={filter.id}
+              className={`customer-pill ${isActive ? 'active' : ''}`} 
+              onClick={() => setDietFilter(filter.id)}
+              style={{
+                backgroundColor: isActive ? 'var(--color-accent)' : '#1c1512',
+                color: isActive ? '#ffffff' : 'var(--text-secondary)',
+                border: 'none',
+                padding: '8px 20px',
+                borderRadius: '20px',
+                fontSize: '0.85rem',
+                fontWeight: '600',
+                cursor: 'pointer',
+                transition: 'all 0.25s',
+                whiteSpace: 'nowrap'
+              }}
+            >
+              {filter.label}
+            </button>
+          );
+        })}
+        <div style={{ width: '1px', backgroundColor: 'rgba(255,255,255,0.08)', margin: '4px 2px' }}></div>
+        {/* Category quick filters */}
+        {categories.map(cat => {
+          const isActive = activeCategoryId === cat.id;
+          return (
+            <button 
+              key={cat.id}
+              className={`customer-pill ${isActive ? 'active' : ''}`}
+              onClick={() => setActiveCategoryId(isActive ? 'all' : cat.id)}
+              style={{
+                backgroundColor: isActive ? 'var(--color-accent)' : '#1c1512',
+                color: isActive ? '#ffffff' : 'var(--text-secondary)',
+                border: 'none',
+                padding: '8px 20px',
+                borderRadius: '20px',
+                fontSize: '0.85rem',
+                fontWeight: '600',
+                cursor: 'pointer',
+                transition: 'all 0.25s',
+                whiteSpace: 'nowrap'
+              }}
+            >
+              {cat.name}
+            </button>
+          );
+        })}
+      </nav>
+
+      {/* Menu live status info */}
       <div className="customer-status-bar" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '0 1.25rem', marginBottom: '1.25rem', fontSize: '0.82rem', fontWeight: '500', color: 'var(--text-secondary)' }}>
         <span><strong>{filteredItems.length}</strong> items available</span>
         <span style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
@@ -106,132 +163,101 @@ const MenuGrid = ({
         {Object.keys(itemsByCategory).length === 0 ? (
           <div style={{ textAlign: 'center', padding: '4rem 1.25rem', color: 'var(--text-secondary)' }}>
             <p style={{ fontSize: '1.25rem', fontWeight: '700', marginBottom: '0.5rem', fontFamily: 'var(--font-heading)' }}>No items found</p>
-            <p style={{ fontSize: '0.9rem', opacity: 0.8 }}>Try adjusting your search or category filter</p>
+            <p style={{ fontSize: '0.9rem', opacity: 0.8 }}>Try adjusting your search or filters</p>
           </div>
         ) : (
           categories.filter(cat => itemsByCategory[cat.id]).map(cat => (
-            <div key={cat.id} className="customer-category-section">
-              <div className="customer-category-header" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0 1.25rem', marginBottom: '1rem' }}>
-                <h2 className="customer-category-title" style={{ fontSize: '0.9rem', fontWeight: '800', letterSpacing: '0.08em', textTransform: 'uppercase', color: 'var(--text-secondary)' }}>{cat.name}</h2>
-                <div className="customer-category-line" style={{ flex: 1, height: '1px', background: 'rgba(255, 255, 255, 0.08)', margin: '0 1rem' }} />
-                <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>{itemsByCategory[cat.id].length} {itemsByCategory[cat.id].length === 1 ? 'item' : 'items'}</span>
+            <div key={cat.id} className="customer-category-section" style={{ marginBottom: '2rem' }}>
+              
+              {/* Premium Category Header: # Title [itemCount] */}
+              <div className="customer-category-header" style={{ display: 'flex', alignItems: 'center', padding: '0 1rem', marginBottom: '1rem' }}>
+                <h2 className="customer-category-title" style={{ fontSize: '1.15rem', fontWeight: '800', textTransform: 'none', color: '#ffffff', display: 'flex', alignItems: 'center', gap: '6px', margin: 0 }}>
+                  <span style={{ color: 'var(--color-accent)' }}>#</span> {cat.name}
+                  <span style={{ fontSize: '0.78rem', fontWeight: '500', color: 'var(--text-muted)', marginLeft: '6px' }}>
+                    {itemsByCategory[cat.id].length} {itemsByCategory[cat.id].length === 1 ? 'item' : 'items'}
+                  </span>
+                </h2>
               </div>
-              <div className="customer-menu-grid" style={{ display: 'flex', flexDirection: 'column', gap: '1rem', padding: '0 1.25rem' }}>
+
+              {/* 3-Column Responsive Grid */}
+              <div className="customer-menu-grid-3col">
                 {itemsByCategory[cat.id].map(item => {
-                  const qty = cart[item.id] || 0;
+                  const qty = getItemQtyInCart(item.id);
                   const isVeg = isVegItem(item.name);
-                  const badge = getItemBadge(item.name);
                   
                   return (
                     <div 
                       key={item.id} 
-                      className="customer-item-card"
-                      style={{ 
-                        display: 'flex', 
-                        flexDirection: 'row', 
-                        alignItems: 'center', 
-                        gap: '1rem', 
-                        backgroundColor: 'var(--card-bg)', 
-                        border: '1px solid var(--card-border)', 
-                        borderRadius: '20px', 
-                        padding: '1rem', 
-                        position: 'relative',
-                        opacity: item.is_available ? 1 : 0.6 
+                      className="customer-vertical-item-card"
+                      onClick={() => {
+                        if (item.is_available && onItemClick) {
+                          onItemClick(item);
+                        }
                       }}
                     >
-                      <div 
-                        className="customer-item-icon-wrapper"
-                        style={{
-                          width: '80px',
-                          height: '80px',
-                          backgroundColor: 'rgba(255, 255, 255, 0.03)',
-                          borderRadius: '16px',
-                          display: 'flex',
-                          alignItems: 'center',
-                          justifyContent: 'center',
-                          flexShrink: 0,
-                          overflow: 'hidden',
-                          position: 'relative'
-                        }}
-                      >
+                      {/* Image Frame with Available Badge */}
+                      <div className="customer-vertical-image-wrapper">
                         {item.image_url ? (
-                          <img src={item.image_url} alt={item.name} loading="lazy" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                          <img src={item.image_url} alt={item.name} loading="lazy" className="customer-vertical-image" />
                         ) : (
                           <span style={{ fontSize: '2rem' }}>{getIcon(item.name, 'item')}</span>
                         )}
                         
-                        {!item.is_available && (
-                          <div className="customer-item-out-overlay">
-                            Out of stock
+                        {item.is_available ? (
+                          <div className="customer-vertical-avail-badge">
+                            <div className="customer-vertical-avail-dot"></div>
+                            Available
+                          </div>
+                        ) : (
+                          <div className="customer-vertical-avail-badge" style={{ backgroundColor: 'rgba(239, 68, 68, 0.9)' }}>
+                            Sold Out
                           </div>
                         )}
                       </div>
                       
-                      <div className="customer-item-content" style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '4px', minWidth: 0 }}>
-                        <div className="customer-item-header" style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                          <h3 className="customer-item-title" style={{ fontSize: '1.05rem', fontWeight: '700', margin: 0, color: 'var(--text-primary)' }}>{item.name}</h3>
+                      {/* Item Details */}
+                      <div className="customer-vertical-content">
+                        <span className="customer-vertical-category">{cat.name}</span>
+                        <h3 className="customer-vertical-title">{item.name}</h3>
+                        
+                        {/* Rating stars */}
+                        <div className="customer-vertical-stars">
+                          ★ ★ ★ ★ ★
                         </div>
                         
-                        {item.description && (
-                          <p className="customer-item-desc" style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', margin: 0, lineHeight: '1.3' }}>{item.description}</p>
-                        )}
+                        {/* Price */}
+                        <span className="customer-vertical-price">₹{item.price}</span>
 
-                        <div className="customer-item-badges" style={{ display: 'flex', gap: '6px', marginTop: '4px', flexWrap: 'wrap' }}>
-                          <span style={{ 
-                            fontSize: '0.68rem', 
-                            fontWeight: '600', 
-                            padding: '2px 8px', 
-                            borderRadius: '6px', 
-                            backgroundColor: isVeg ? 'rgba(16, 185, 129, 0.1)' : 'rgba(239, 68, 68, 0.1)', 
-                            color: isVeg ? '#10b981' : '#ef4444',
-                            border: `1px solid ${isVeg ? 'rgba(16, 185, 129, 0.2)' : 'rgba(239, 68, 68, 0.2)'}`
-                          }}>
-                            {isVeg ? 'Veg' : 'Non-Veg'}
-                          </span>
-                          {badge === 'bestseller' && (
-                            <span style={{ fontSize: '0.68rem', fontWeight: '600', padding: '2px 8px', borderRadius: '6px', backgroundColor: 'rgba(255, 94, 26, 0.1)', color: 'var(--color-accent)', border: '1px solid rgba(255, 94, 26, 0.2)' }}>
-                              Bestseller
-                            </span>
-                          )}
-                          {badge === 'popular' && (
-                            <span style={{ fontSize: '0.68rem', fontWeight: '600', padding: '2px 8px', borderRadius: '6px', backgroundColor: 'rgba(37, 99, 235, 0.1)', color: '#3b82f6', border: '1px solid rgba(37, 99, 235, 0.2)' }}>
-                              Popular
-                            </span>
-                          )}
-                        </div>
-                      </div>
-
-                      <div className="customer-item-actions-right" style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '10px', flexShrink: 0 }}>
-                        <div className="customer-item-price-wrapper" style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end' }}>
-                          <span className="customer-item-price" style={{ fontSize: '1.2rem', fontWeight: '800', color: 'var(--text-primary)' }}>₹{item.price}</span>
-                          <span className="customer-item-per-item" style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>per item</span>
-                        </div>
-
+                        {/* Actions */}
                         {qty === 0 ? (
                           <button 
-                            id={`add-to-cart-${item.id}`}
-                            className="customer-card-add-btn" 
-                            onClick={() => addToCart(item.id)}
+                            className="customer-vertical-btn"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              if (item.is_available && onItemClick) {
+                                onItemClick(item);
+                              }
+                            }}
                             disabled={!item.is_available}
-                            aria-label={`Add ${item.name} to order`}
-                            style={{ padding: '6px 16px', borderRadius: '10px', fontSize: '0.78rem', fontWeight: '800' }}
                           >
-                            + Add
+                            View Details
                           </button>
                         ) : (
-                          <div className="customer-card-counter" style={{ padding: '2px 6px', borderRadius: '8px' }}>
+                          <div className="customer-vertical-counter" onClick={(e) => e.stopPropagation()}>
                             <button 
                               onClick={() => removeFromCart(item.id)}
-                              aria-label={`Decrease quantity of ${item.name}`}
-                              style={{ width: '24px', height: '24px', fontSize: '1rem' }}
+                              aria-label="Decrease quantity"
                             >
                               -
                             </button>
-                            <span style={{ fontSize: '0.85rem', fontWeight: '800', color: 'var(--text-primary)', margin: '0 6px' }}>{qty}</span>
+                            <span>{qty}</span>
                             <button 
-                              onClick={() => addToCart(item.id)}
-                              aria-label={`Increase quantity of ${item.name}`}
-                              style={{ width: '24px', height: '24px', fontSize: '1rem' }}
+                              onClick={() => {
+                                if (item.is_available && onItemClick) {
+                                  onItemClick(item);
+                                }
+                              }}
+                              aria-label="Increase quantity"
                             >
                               +
                             </button>

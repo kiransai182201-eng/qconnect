@@ -59,7 +59,7 @@ export const TRANSLATIONS = {
     anyComments: 'Any comments? (Optional)',
     submitFeedback: 'Submit Feedback',
     sending: 'Sending...',
-    waiterCalled: 'Waiter Called!',
+    waiterCalled: 'Waiter Called! Service request sent.',
     waiterComing: 'They will be at your table shortly.',
     
     // Menu Builder
@@ -217,7 +217,7 @@ export const TRANSLATIONS = {
     anyComments: 'ఏమైనా వ్యాఖ్యలు? (ఐచ్ఛికం)',
     submitFeedback: 'ఫీడ్‌బ్యాక్ సమర్పించండి',
     sending: 'పంపుతున్నాము...',
-    waiterCalled: 'వెయిటర్‌ను పిలిచారు!',
+    waiterCalled: 'వెయిటర్‌ను పిలిచారు! (Service request sent)',
     waiterComing: 'వారు త్వరలో మీ టేబుల్ వద్దకు వస్తారు.',
     
     // Menu Builder

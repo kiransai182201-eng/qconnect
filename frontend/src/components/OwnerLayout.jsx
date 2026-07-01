@@ -119,6 +119,12 @@ const OwnerLayout = ({ activeTab }) => {
         }
         setUser(authUser);
 
+        // Check if user has a pending registration (not yet approved)
+        const db = JSON.parse(localStorage.getItem('supabase_mock_db') || '{}');
+        const pendingReg = (db.registrations || []).find(
+          r => r.email?.toLowerCase() === authUser.email?.toLowerCase() && r.status === 'PENDING'
+        );
+
         // Fetch shop details
         const { data: shops } = await supabase.from('shops').select('*').eq('user_id', authUser.id).limit(1);
         if (!isMounted) return;
@@ -221,8 +227,12 @@ const OwnerLayout = ({ activeTab }) => {
             })
             .subscribe();
         } else {
-          // If shop is not setup yet
-          navigate('/shop-setup');
+          // If shop is not setup yet, check for pending registration
+          if (pendingReg) {
+            navigate('/pending-approval');
+          } else {
+            navigate('/shop-setup');
+          }
         }
       } catch (err) {
         console.error('Error fetching layout data:', err);

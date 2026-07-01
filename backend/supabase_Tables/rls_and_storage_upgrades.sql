@@ -122,7 +122,7 @@ ALTER TABLE public.order_items ADD CONSTRAINT chk_order_items_quantity CHECK (qu
 
 -- Ensure notification types are valid and messages have a reasonable length
 ALTER TABLE public.notifications DROP CONSTRAINT IF EXISTS chk_notifications_type;
-ALTER TABLE public.notifications ADD CONSTRAINT chk_notifications_type CHECK (type IN ('order', 'waiter', 'payment', 'kitchen'));
+ALTER TABLE public.notifications ADD CONSTRAINT chk_notifications_type CHECK (type IN ('order', 'waiter', 'payment', 'kitchen', 'feedback'));
 
 ALTER TABLE public.notifications DROP CONSTRAINT IF EXISTS chk_notifications_title_length;
 ALTER TABLE public.notifications ADD CONSTRAINT chk_notifications_title_length CHECK (length(title) <= 100);

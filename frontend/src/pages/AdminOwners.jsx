@@ -1,174 +1,329 @@
-import { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { supabase } from '../lib/supabase';
-import { 
-  Users, 
-  Search,
-  Eye,
-  Phone,
-  MapPin,
-  Calendar,
-  Store
+import { useState, useEffect, useCallback } from 'react';
+import { useOutletContext } from 'react-router-dom';
+import {
+  Store, Search, Filter, Plus, Eye, Trash2, Pause, Play,
+  CheckCircle, XCircle, ChevronDown, MapPin, Phone
 } from 'lucide-react';
-import '../admin-dashboard.css';
+
+const getDB = () => {
+  const raw = localStorage.getItem('supabase_mock_db');
+  if (!raw) return { shops: [], registrations: [], users: [], shop_tables: [] };
+  const db = JSON.parse(raw);
+  db.shops = db.shops || [];
+  db.registrations = db.registrations || [];
+  db.users = db.users || [];
+  db.shop_tables = db.shop_tables || [];
+  return db;
+};
+
+const saveDB = (db) => {
+  localStorage.setItem('supabase_mock_db', JSON.stringify(db));
+  localStorage.setItem('supabase_mock_broadcast', JSON.stringify({
+    tableName: 'shops',
+    eventType: 'UPDATE',
+    timestamp: Date.now()
+  }));
+};
 
 const AdminOwners = () => {
-  const navigate = useNavigate();
-  const [shops, setShops] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [searchQuery, setSearchQuery] = useState('');
+  const { user } = useOutletContext();
+  const [db, setDb] = useState(getDB);
+  const [search, setSearch] = useState('');
+  const [filter, setFilter] = useState('all');
+  const [toast, setToast] = useState(null);
+
+  const refreshDB = useCallback(() => setDb(getDB()), []);
 
   useEffect(() => {
-    const fetchOwners = async () => {
-      try {
-        const { data: allShops } = await supabase
-          .from('shops')
-          .select('*')
-          .order('created_at', { ascending: false });
+    const interval = setInterval(refreshDB, 3000);
+    return () => clearInterval(interval);
+  }, [refreshDB]);
 
-        if (allShops) setShops(allShops);
-      } catch (err) {
-        console.error('Error fetching owners:', err);
-      } finally {
-        setLoading(false);
-      }
+  useEffect(() => {
+    const handleStorage = (e) => {
+      if (e.key === 'supabase_mock_db' || e.key === 'supabase_mock_broadcast') refreshDB();
     };
+    window.addEventListener('storage', handleStorage);
+    return () => window.removeEventListener('storage', handleStorage);
+  }, [refreshDB]);
 
-    fetchOwners();
-  }, []);
-
-  const strftime = (dateStr) => {
-    if (!dateStr) return 'N/A';
-    const d = new Date(dateStr);
-    const dd = String(d.getDate()).padStart(2, '0');
-    const mm = String(d.getMonth() + 1).padStart(2, '0');
-    const yyyy = d.getFullYear();
-    let hours = d.getHours();
-    const minutes = String(d.getMinutes()).padStart(2, '0');
-    const seconds = String(d.getSeconds()).padStart(2, '0');
-    const ampm = hours >= 12 ? 'PM' : 'AM';
-    hours = hours % 12;
-    hours = hours ? hours : 12;
-    const hh = String(hours).padStart(2, '0');
-    return `${dd}/${mm}/${yyyy} ${hh}:${minutes}:${seconds} ${ampm}`;
+  const showToast = (msg) => {
+    setToast(msg);
+    setTimeout(() => setToast(null), 4000);
   };
 
-  const filteredShops = shops.filter(shop => {
-    const query = searchQuery.toLowerCase();
-    return (
-      (shop.name || '').toLowerCase().includes(query) ||
-      (shop.owner_name || '').toLowerCase().includes(query) ||
-      (shop.mobile || '').includes(query) ||
-      (shop.address || '').toLowerCase().includes(query)
-    );
+  // Filter shops
+  const filteredShops = db.shops.filter(shop => {
+    const matchesSearch = !search ||
+      shop.name?.toLowerCase().includes(search.toLowerCase()) ||
+      shop.owner_name?.toLowerCase().includes(search.toLowerCase()) ||
+      shop.address?.toLowerCase().includes(search.toLowerCase());
+
+    if (filter === 'all') return matchesSearch;
+    if (filter === 'active') return matchesSearch && shop.status === 'published' && !shop.holiday_mode;
+    if (filter === 'holiday') return matchesSearch && shop.holiday_mode;
+    if (filter === 'suspended') return matchesSearch && shop.status === 'suspended';
+    return matchesSearch;
   });
 
-  if (loading) {
-    return (
-      <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: '60vh' }}>
-        <div style={{ color: '#64748b' }}>Loading owners...</div>
-      </div>
-    );
-  }
+  const tabCounts = {
+    all: db.shops.length,
+    active: db.shops.filter(s => s.status === 'published' && !s.holiday_mode).length,
+    holiday: db.shops.filter(s => s.holiday_mode).length,
+    suspended: db.shops.filter(s => s.status === 'suspended').length
+  };
+
+  const toggleShopStatus = (shopId) => {
+    const currentDB = getDB();
+    const shop = currentDB.shops.find(s => s.id === shopId);
+    if (!shop) return;
+    if (shop.status === 'suspended') {
+      shop.status = 'published';
+      showToast(`✅ ${shop.name} reactivated`);
+    } else {
+      shop.status = 'suspended';
+      showToast(`⏸ ${shop.name} suspended`);
+    }
+    saveDB(currentDB);
+    refreshDB();
+  };
+
+  const deleteShop = (shopId) => {
+    if (!confirm('Are you sure you want to delete this shop?')) return;
+    const currentDB = getDB();
+    const shop = currentDB.shops.find(s => s.id === shopId);
+    currentDB.shops = currentDB.shops.filter(s => s.id !== shopId);
+    currentDB.shop_tables = (currentDB.shop_tables || []).filter(t => t.shop_id !== shopId);
+    saveDB(currentDB);
+    refreshDB();
+    showToast(`🗑 Deleted ${shop?.name || 'shop'}`);
+  };
+
+  const getShopOwner = (shop) => {
+    return db.users.find(u => u.id === shop.user_id);
+  };
+
+  const getStatusBadge = (shop) => {
+    if (shop.status === 'suspended') return { label: 'Suspended', cls: 'suspended' };
+    if (shop.holiday_mode) return { label: 'Holiday', cls: 'holiday' };
+    return { label: 'Active', cls: 'active' };
+  };
 
   return (
-    <div>
-      <div className="admin-section-header" style={{ marginBottom: '1.5rem' }}>
-        <h3 className="admin-section-title">
-          All Registered Owners ({filteredShops.length})
-        </h3>
-        <div style={{ position: 'relative' }}>
-          <Search size={16} style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)', color: '#475569' }} />
+    <div className="admin-owners-page">
+      <style>{`
+        .admin-owners-page { animation: fadeInAdmin 0.3s ease; }
+        @keyframes fadeInAdmin { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
+        
+        .ao-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 20px; flex-wrap: wrap; gap: 12px; }
+        .ao-header-left h2 { font-size: 1.3rem; font-weight: 700; color: #f1f5f9; margin: 0; }
+        .ao-header-left p { font-size: 0.8rem; color: #64748b; margin: 4px 0 0; }
+        
+        .ao-tabs { display: flex; gap: 4px; margin-bottom: 16px; flex-wrap: wrap; }
+        .ao-tab {
+          padding: 8px 16px; border-radius: 8px; border: none;
+          background: rgba(255,255,255,0.03); color: #94a3b8;
+          font-size: 0.82rem; font-weight: 500; cursor: pointer; transition: all 0.2s;
+        }
+        .ao-tab:hover { background: rgba(255,255,255,0.06); color: #e2e8f0; }
+        .ao-tab.active { background: rgba(139,92,246,0.12); color: #a78bfa; }
+        .ao-tab-count { font-size: 0.7rem; margin-left: 4px; opacity: 0.7; }
+        
+        .ao-search-row { display: flex; gap: 10px; margin-bottom: 20px; }
+        .ao-search-box {
+          flex: 1; display: flex; align-items: center; gap: 8px;
+          background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.08);
+          border-radius: 10px; padding: 0 14px;
+        }
+        .ao-search-box input {
+          flex: 1; border: none; background: transparent; color: #f1f5f9;
+          padding: 10px 0; font-size: 0.88rem; outline: none;
+        }
+        .ao-search-box input::placeholder { color: #475569; }
+        
+        .ao-table-wrap {
+          background: rgba(255,255,255,0.02); border: 1px solid rgba(255,255,255,0.06);
+          border-radius: 14px; overflow: hidden;
+        }
+        .ao-table { width: 100%; border-collapse: collapse; }
+        .ao-table thead { background: rgba(255,255,255,0.03); }
+        .ao-table th {
+          text-align: left; padding: 12px 16px; font-size: 0.72rem;
+          font-weight: 600; color: #64748b; text-transform: uppercase;
+          letter-spacing: 0.8px; border-bottom: 1px solid rgba(255,255,255,0.06);
+        }
+        .ao-table td {
+          padding: 14px 16px; font-size: 0.88rem; color: #cbd5e1;
+          border-bottom: 1px solid rgba(255,255,255,0.04);
+        }
+        .ao-table tbody tr { transition: background 0.15s; }
+        .ao-table tbody tr:hover { background: rgba(139,92,246,0.04); }
+        .ao-table tbody tr:last-child td { border-bottom: none; }
+        
+        .ao-shop-cell { display: flex; align-items: center; gap: 10px; }
+        .ao-shop-avatar {
+          width: 36px; height: 36px; border-radius: 10px;
+          background: linear-gradient(135deg, rgba(139,92,246,0.2), rgba(139,92,246,0.06));
+          display: flex; align-items: center; justify-content: center;
+          color: #a78bfa; font-weight: 700; font-size: 0.8rem; flex-shrink: 0;
+          overflow: hidden;
+        }
+        .ao-shop-avatar img { width: 100%; height: 100%; object-fit: cover; }
+        .ao-shop-name { font-weight: 600; color: #e2e8f0; }
+        .ao-shop-category { font-size: 0.72rem; color: #64748b; }
+        
+        .ao-badge { display: inline-flex; align-items: center; gap: 4px; padding: 3px 10px; border-radius: 20px; font-size: 0.72rem; font-weight: 600; }
+        .ao-badge.active { background: rgba(34,197,94,0.1); color: #4ade80; }
+        .ao-badge.holiday { background: rgba(239,68,68,0.1); color: #f87171; }
+        .ao-badge.suspended { background: rgba(245,158,11,0.1); color: #fbbf24; }
+        
+        .ao-action-btn {
+          padding: 5px 10px; border-radius: 6px; border: none;
+          font-size: 0.75rem; cursor: pointer; transition: all 0.2s;
+          display: inline-flex; align-items: center; gap: 4px;
+        }
+        .ao-action-btn.view { background: rgba(139,92,246,0.08); color: #a78bfa; }
+        .ao-action-btn.view:hover { background: rgba(139,92,246,0.2); }
+        .ao-action-btn.toggle { background: rgba(245,158,11,0.08); color: #fbbf24; }
+        .ao-action-btn.toggle:hover { background: rgba(245,158,11,0.2); }
+        .ao-action-btn.delete { background: rgba(239,68,68,0.06); color: #f87171; }
+        .ao-action-btn.delete:hover { background: rgba(239,68,68,0.15); }
+        
+        .ao-empty { text-align: center; padding: 48px 16px; color: #475569; }
+        .ao-empty-icon { font-size: 2.5rem; margin-bottom: 12px; opacity: 0.3; }
+        
+        .ao-toast {
+          position: fixed; bottom: 24px; right: 24px; z-index: 9999;
+          background: #1e1e2e; border: 1px solid rgba(139,92,246,0.3);
+          padding: 14px 20px; border-radius: 12px; color: #e2e8f0;
+          font-size: 0.88rem; font-weight: 500;
+          box-shadow: 0 12px 40px rgba(0,0,0,0.4);
+          animation: slideUpToast 0.3s ease;
+        }
+        @keyframes slideUpToast { from { opacity: 0; transform: translateY(20px); } to { opacity: 1; transform: none; } }
+        
+        @media (max-width: 768px) {
+          .ao-table-wrap { overflow-x: auto; }
+          .ao-header { flex-direction: column; align-items: flex-start; }
+          .ao-search-row { flex-direction: column; }
+        }
+      `}</style>
+
+      {/* Header */}
+      <div className="ao-header">
+        <div className="ao-header-left">
+          <h2>Shop Management</h2>
+          <p>Manage all registered shops and owners</p>
+        </div>
+      </div>
+
+      {/* Filter Tabs */}
+      <div className="ao-tabs">
+        {[
+          { key: 'all', label: 'All' },
+          { key: 'active', label: 'Active' },
+          { key: 'holiday', label: 'Holiday' },
+          { key: 'suspended', label: 'Suspended' }
+        ].map(tab => (
+          <button
+            key={tab.key}
+            className={`ao-tab ${filter === tab.key ? 'active' : ''}`}
+            onClick={() => setFilter(tab.key)}
+          >
+            {tab.label}
+            <span className="ao-tab-count">({tabCounts[tab.key]})</span>
+          </button>
+        ))}
+      </div>
+
+      {/* Search */}
+      <div className="ao-search-row">
+        <div className="ao-search-box">
+          <Search size={15} style={{ color: '#64748b' }} />
           <input
             type="text"
-            className="admin-search-input"
-            placeholder="Search by name, mobile, address..."
-            value={searchQuery}
-            onChange={e => setSearchQuery(e.target.value)}
-            style={{ paddingLeft: '36px' }}
+            placeholder="Search by shop name, owner, address..."
+            value={search}
+            onChange={e => setSearch(e.target.value)}
           />
         </div>
       </div>
 
-      {filteredShops.length === 0 ? (
-        <div className="admin-empty-state">
-          <div className="admin-empty-state-icon">
-            <Users size={28} />
-          </div>
-          <p style={{ fontSize: '0.95rem', marginBottom: '0.25rem' }}>No owners found</p>
-          <p style={{ fontSize: '0.8rem' }}>
-            {searchQuery ? 'Try a different search query' : 'New owners will appear here after registration'}
-          </p>
-        </div>
-      ) : (
-        <div style={{ overflowX: 'auto' }}>
-          <table className="admin-owners-table">
-            <thead>
+      {/* Shops Table */}
+      <div className="ao-table-wrap">
+        <table className="ao-table">
+          <thead>
+            <tr>
+              <th>Shop</th>
+              <th>Owner</th>
+              <th>Contact</th>
+              <th>Address</th>
+              <th>Status</th>
+              <th>Tables</th>
+              <th>Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            {filteredShops.length === 0 ? (
               <tr>
-                <th>#</th>
-                <th>Shop Name</th>
-                <th>Owner Name</th>
-                <th>Mobile</th>
-                <th>Address</th>
-                <th>Tables</th>
-                <th>Status</th>
-                <th>Registered On</th>
-                <th>Actions</th>
+                <td colSpan="7">
+                  <div className="ao-empty">
+                    <div className="ao-empty-icon">🏪</div>
+                    <p>{search ? 'No shops match your search' : 'No shops found'}</p>
+                  </div>
+                </td>
               </tr>
-            </thead>
-            <tbody>
-              {filteredShops.map((shop, index) => (
-                <tr key={shop.id}>
-                  <td style={{ color: '#475569', fontSize: '0.8rem' }}>{index + 1}</td>
-                  <td>
-                    <div className="admin-owner-name-cell">
-                      <div className="admin-owner-avatar">
-                        {shop.logo_url ? (
-                          <img src={shop.logo_url} alt={shop.name} />
-                        ) : (
-                          <Store size={16} />
-                        )}
+            ) : (
+              filteredShops.map(shop => {
+                const owner = getShopOwner(shop);
+                const badge = getStatusBadge(shop);
+                return (
+                  <tr key={shop.id}>
+                    <td>
+                      <div className="ao-shop-cell">
+                        <div className="ao-shop-avatar">
+                          {shop.logo_url
+                            ? <img src={shop.logo_url} alt={shop.name} />
+                            : shop.name?.[0]?.toUpperCase() || 'S'}
+                        </div>
+                        <div>
+                          <div className="ao-shop-name">{shop.name}</div>
+                          <div className="ao-shop-category">{shop.category || 'Restaurant'}</div>
+                        </div>
                       </div>
-                      <span style={{ fontWeight: 500, color: '#e2e8f0' }}>{shop.name || 'Unnamed'}</span>
-                    </div>
-                  </td>
-                  <td>{shop.owner_name || '—'}</td>
-                  <td>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                      <Phone size={13} style={{ color: '#64748b' }} />
-                      {shop.mobile || '—'}
-                    </div>
-                  </td>
-                  <td style={{ maxWidth: '180px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                      <MapPin size={13} style={{ color: '#64748b', flexShrink: 0 }} />
-                      {shop.address || '—'}
-                    </div>
-                  </td>
-                  <td style={{ textAlign: 'center' }}>{shop.tables || '—'}</td>
-                  <td>
-                    <span className={`admin-status-badge ${shop.holiday_mode ? 'holiday' : 'active'}`}>
-                      {shop.holiday_mode ? 'Closed' : 'Active'}
-                    </span>
-                  </td>
-                  <td style={{ fontSize: '0.78rem', color: '#64748b', whiteSpace: 'nowrap' }}>
-                    {strftime(shop.created_at)}
-                  </td>
-                  <td>
-                    <button
-                      className="admin-view-btn"
-                      onClick={() => window.open(`/menu/${shop.owner_unique_id || shop.id}`, '_blank')}
-                    >
-                      <Eye size={14} style={{ marginRight: '4px', verticalAlign: 'middle' }} />
-                      View
-                    </button>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      )}
+                    </td>
+                    <td>{shop.owner_name || owner?.full_name || '—'}</td>
+                    <td style={{ fontSize: '0.82rem' }}>{shop.mobile || '—'}</td>
+                    <td style={{ fontSize: '0.82rem', maxWidth: '160px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{shop.address || '—'}</td>
+                    <td><span className={`ao-badge ${badge.cls}`}>{badge.label}</span></td>
+                    <td>{shop.tables || 0}</td>
+                    <td>
+                      <div style={{ display: 'flex', gap: '4px' }}>
+                        <button
+                          className="ao-action-btn toggle"
+                          title={shop.status === 'suspended' ? 'Reactivate' : 'Suspend'}
+                          onClick={() => toggleShopStatus(shop.id)}
+                        >
+                          {shop.status === 'suspended' ? <Play size={12} /> : <Pause size={12} />}
+                        </button>
+                        <button
+                          className="ao-action-btn delete"
+                          title="Delete"
+                          onClick={() => deleteShop(shop.id)}
+                        >
+                          <Trash2 size={12} />
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                );
+              })
+            )}
+          </tbody>
+        </table>
+      </div>
+
+      {toast && <div className="ao-toast">{toast}</div>}
     </div>
   );
 };

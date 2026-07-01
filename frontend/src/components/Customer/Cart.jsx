@@ -26,8 +26,9 @@ const Cart = ({
   const mockSavings = Math.max(10, Math.round(getCartTotal() * 0.1));
 
   // Check if any cart items are currently unavailable
-  const unavailableCartItems = Object.keys(cart).filter(itemId => {
-    const item = items.find(i => i.id === itemId);
+  const unavailableCartItems = Object.keys(cart).filter(cartKey => {
+    const cartItem = cart[cartKey];
+    const item = items.find(i => i.id === cartItem.itemId);
     return item && item.is_available === false;
   });
   const hasUnavailableItems = unavailableCartItems.length > 0;
@@ -142,11 +143,17 @@ const Cart = ({
                 </div>
               ) : (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-                  {Object.keys(cart).map(itemId => {
-                    const item = items.find(i => i.id === itemId);
+                  {Object.keys(cart).map(cartKey => {
+                    const cartItem = cart[cartKey];
+                    const item = items.find(i => i.id === cartItem.itemId);
                     if (!item) return null;
+                    
+                    const addonsTotal = cartItem.customizations?.addons?.reduce((sum, a) => sum + parseFloat(a.price), 0) || 0;
+                    const singlePrice = parseFloat(item.price) + addonsTotal;
+                    const subtotal = singlePrice * cartItem.quantity;
+
                     return (
-                      <div key={item.id} style={{ display: 'flex', alignItems: 'center', paddingBottom: '1rem', borderBottom: '1px solid var(--pill-border)', gap: '12px', position: 'relative', opacity: item.is_available === false ? 0.5 : 1 }}>
+                      <div key={cartKey} style={{ display: 'flex', alignItems: 'center', paddingBottom: '1rem', borderBottom: '1px solid var(--pill-border)', gap: '12px', position: 'relative', opacity: item.is_available === false ? 0.5 : 1 }}>
                         {item.image_url ? (
                           <img src={item.image_url} alt={item.name} style={{ width: '48px', height: '48px', borderRadius: '10px', objectFit: 'cover', flexShrink: 0 }} />
                         ) : (
@@ -157,20 +164,39 @@ const Cart = ({
                         
                         <div style={{ minWidth: 0, flex: 1 }}>
                           <p style={{ margin: 0, fontWeight: '700', color: 'var(--text-primary)', fontSize: '0.9rem', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{item.name}</p>
-                          <p style={{ margin: '2px 0 0 0', fontSize: '0.78rem', color: 'var(--text-secondary)' }}>₹{item.price}</p>
+                          <p style={{ margin: '2px 0 0 0', fontSize: '0.78rem', color: 'var(--text-secondary)' }}>
+                            ₹{singlePrice.toFixed(2)}
+                          </p>
+                          
+                          {cartItem.customizations && (
+                            <div style={{ fontSize: '0.7rem', color: 'var(--text-secondary)', marginTop: '4px', display: 'flex', flexDirection: 'column', gap: '2px' }}>
+                              {cartItem.customizations.spiceLevel && (
+                                <span style={{ fontWeight: '500' }}>🌶️ Spice: {cartItem.customizations.spiceLevel}</span>
+                              )}
+                              {cartItem.customizations.sweetnessLevel && (
+                                <span style={{ fontWeight: '500' }}>🍭 Sweetness: {cartItem.customizations.sweetnessLevel}</span>
+                              )}
+                              {cartItem.customizations.addons && cartItem.customizations.addons.length > 0 && (
+                                <span style={{ fontWeight: '500' }}>➕ Add-ons: {cartItem.customizations.addons.map(a => a.name).join(', ')}</span>
+                              )}
+                              {cartItem.customizations.specialInstructions && (
+                                <span style={{ fontStyle: 'italic', color: 'var(--color-accent)' }}>📝 "{cartItem.customizations.specialInstructions}"</span>
+                              )}
+                            </div>
+                          )}
                         </div>
                         
                         {/* Drawer Counter Control */}
                         <div className="customer-card-counter" style={{ padding: '2px 4px', gap: '4px' }}>
                           <button 
-                            onClick={() => removeFromCart(item.id)}
+                            onClick={() => removeFromCart(cartItem.itemId, cartItem.customizations)}
                             style={{ width: '22px', height: '22px', fontSize: '1rem' }}
                           >
                             -
                           </button>
-                          <span style={{ fontSize: '0.85rem', minWidth: '12px', textAlign: 'center' }}>{cart[itemId]}</span>
+                          <span style={{ fontSize: '0.85rem', minWidth: '12px', textAlign: 'center' }}>{cartItem.quantity}</span>
                           <button 
-                            onClick={() => addToCart(item.id)}
+                            onClick={() => addToCart(item, 1, cartItem.customizations)}
                             style={{ width: '22px', height: '22px', fontSize: '1rem' }}
                           >
                             +
@@ -178,7 +204,7 @@ const Cart = ({
                         </div>
                         
                         <div style={{ minWidth: '50px', textAlign: 'right', fontWeight: '800', color: 'var(--text-primary)', fontSize: '0.95rem' }}>
-                          ₹{item.price * cart[itemId]}
+                          ₹{subtotal.toFixed(2)}
                         </div>
                         {/* Unavailable warning tag */}
                         {item.is_available === false && (

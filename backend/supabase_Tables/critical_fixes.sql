@@ -20,7 +20,7 @@ CREATE TABLE IF NOT EXISTS public.notifications (
     id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
     shop_id UUID REFERENCES public.shops(id) ON DELETE CASCADE NOT NULL,
     order_id UUID REFERENCES public.orders(id) ON DELETE CASCADE,
-    type TEXT NOT NULL, -- 'order', 'waiter', 'payment', 'kitchen'
+    type TEXT NOT NULL, -- 'order', 'waiter', 'payment', 'kitchen', 'feedback'
     title TEXT NOT NULL,
     message TEXT NOT NULL,
     is_read BOOLEAN DEFAULT false NOT NULL,

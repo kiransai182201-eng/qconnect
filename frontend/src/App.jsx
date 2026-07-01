@@ -24,6 +24,7 @@ const ReceiptView = React.lazy(() => import('./pages/ReceiptView'));
 const Terms = React.lazy(() => import('./pages/Terms'));
 const About = React.lazy(() => import('./pages/About'));
 const Contact = React.lazy(() => import('./pages/Contact'));
+const PendingApproval = React.lazy(() => import('./pages/PendingApproval'));
 
 // Admin Pages (Developer Only)
 const AdminLogin = React.lazy(() => import('./pages/AdminLogin'));
@@ -90,6 +91,7 @@ function App() {
             <Routes>
               <Route path="/" element={<LandingPage />} />
               <Route path="/register" element={<RegisterLogin />} />
+              <Route path="/pending-approval" element={<PendingApproval />} />
               <Route path="/shop-setup" element={<ShopDetails />} />
               <Route path="/menu/:shopId" element={<CustomerMenu />} />
               <Route path="/receipt/:orderId" element={<ReceiptView />} />

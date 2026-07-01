@@ -9,10 +9,20 @@ SECURITY DEFINER
 SET search_path = public
 AS $$
 BEGIN
-  -- 1. Delete all shops owned by this user (CASCADE deletes related data)
+  -- 1. Delete all uploaded files from storage for the user's shops
+  DELETE FROM storage.objects 
+  WHERE bucket_id = 'shop-logos' 
+    AND name IN (
+      SELECT o.name 
+      FROM storage.objects o
+      JOIN public.shops s ON o.name LIKE (s.id::text || '/%')
+      WHERE s.user_id = auth.uid()
+    );
+
+  -- 2. Delete all shops owned by this user (CASCADE deletes related data)
   DELETE FROM public.shops WHERE user_id = auth.uid();
 
-  -- 2. Delete the user from auth.users
+  -- 3. Delete the user from auth.users
   DELETE FROM auth.users WHERE id = auth.uid();
 END;
 $$;
