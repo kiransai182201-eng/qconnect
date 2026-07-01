@@ -58,4 +58,24 @@ test.describe('Owner Management Dashboard & Settings spec', () => {
     await expect(page.locator('text=Table 06')).not.toBeVisible(); // Since it takes a moment to reload/render
     await expect(page.locator('text=Change Table Count')).toBeVisible();
   });
+
+  test('should delete owner account permanently and redirect to register page', async ({ page }) => {
+    await page.goto('/settings?mock=true');
+
+    // Click delete account list item to open modal
+    await page.click('text=Delete Account');
+
+    // Verify modal is visible
+    await expect(page.locator('h3', { hasText: 'Delete Account' })).toBeVisible();
+
+    // Fill DELETE confirmation
+    const deleteInput = page.locator('#set-delete-confirm');
+    await deleteInput.fill('DELETE');
+
+    // Click permanent delete button
+    await page.click('button:has-text("Delete Permanently")');
+
+    // Verify redirect to register page
+    await page.waitForURL(/\/register/);
+  });
 });

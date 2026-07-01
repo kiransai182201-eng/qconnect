@@ -17,7 +17,6 @@ const ShopDetails = () => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [userId, setUserId] = useState(null);
-  const [email, setEmail] = useState('');
   const { t } = useLanguage();
 
   useEffect(() => {
@@ -38,10 +37,6 @@ const ShopDetails = () => {
       }
       
       setUserId(user.id);
-      
-      if (user.email) {
-        setEmail(user.email);
-      }
       
       // Clean up the OAuth access_token from the URL hash for security and to resolve browser warnings
       if (window.location.hash && window.location.hash.includes('access_token')) {
@@ -149,20 +144,12 @@ const ShopDetails = () => {
           address: address,
           tables: parseInt(tables, 10),
           logo_url: finalLogoUrl,
-          owner_unique_id: ownerUniqueId,
-          email: email,
-          is_approved: false
+          owner_unique_id: ownerUniqueId
         }
       ]);
 
-      if (error) {
-        if (error.code === '23503' || error.message?.toLowerCase().includes('foreign key')) {
-          await supabase.auth.signOut();
-          throw new Error('Your session is invalid (likely because your user account was deleted from the database). You have been signed out. Please register again.');
-        }
-        throw error;
-      }
-      navigate('/dashboard');
+      if (error) throw error;
+      navigate('/qr-code');
     } catch (err) {
       setError(err.message);
     } finally {
@@ -238,17 +225,6 @@ const ShopDetails = () => {
                 onChange={e => setOwnerName(e.target.value)}
                 style={{ width: '100%', padding: '14px', borderRadius: '8px', border: '1px solid var(--glass-border)', background: 'var(--color-surface)', color: 'var(--color-text-main)', outline: 'none', fontSize: '1rem' }} 
                 placeholder={t.ownerNamePlaceholder}
-              />
-            </div>
-
-            <div>
-              <label htmlFor="email-display" style={{ display: 'block', marginBottom: '0.5rem', color: 'var(--color-text-main)', fontWeight: '500' }}>Email Address</label>
-              <input 
-                id="email-display"
-                type="email" 
-                disabled 
-                value={email}
-                style={{ width: '100%', padding: '14px', borderRadius: '8px', border: '1px solid var(--glass-border)', background: 'rgba(255,255,255,0.05)', color: 'var(--color-text-muted)', outline: 'none', fontSize: '1rem', cursor: 'not-allowed' }} 
               />
             </div>
 

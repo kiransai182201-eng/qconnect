@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { useParams, useSearchParams } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
 import { useLanguage } from '../contexts/LanguageContext';
@@ -9,6 +9,7 @@ import MenuHeader from '../components/Customer/MenuHeader';
 import MenuGrid from '../components/Customer/MenuGrid';
 import Cart from '../components/Customer/Cart';
 import ActiveOrderTracker from '../components/Customer/ActiveOrderTracker';
+import ItemDetailModal from '../components/Customer/ItemDetailModal';
 
 const getNow = () => Date.now();
 
@@ -65,12 +66,29 @@ const CustomerMenu = () => {
   const [tableId, setTableId] = useState(null);
   const [manualTableNumber, setManualTableNumber] = useState('');
   
-  // Cartesian persistence in localStorage
+  // Cartesian persistence in localStorage (sanitized for new customizations object structure)
   const [cart, setCart] = useState(() => {
     try {
       const saved = localStorage.getItem(`cart_${shopId}`);
-      if (saved) return JSON.parse(saved);
-    } catch (e) {}
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        const sanitized = {};
+        Object.keys(parsed).forEach(key => {
+          if (typeof parsed[key] === 'number') {
+            sanitized[key] = {
+              itemId: key,
+              quantity: parsed[key],
+              customizations: null
+            };
+          } else if (parsed[key] && typeof parsed[key] === 'object' && parsed[key].itemId) {
+            sanitized[key] = parsed[key];
+          }
+        });
+        return sanitized;
+      }
+    } catch (err) {
+      console.error(err);
+    }
     return {};
   });
   
@@ -78,6 +96,7 @@ const CustomerMenu = () => {
     localStorage.setItem(`cart_${shopId}`, JSON.stringify(cart));
   }, [cart, shopId]);
 
+  const [activeItemForDetail, setActiveItemForDetail] = useState(null);
   const [isCartOpen, setIsCartOpen] = useState(false);
   const [orderNotes, setOrderNotes] = useState('');
   const [isPlacingOrder, setIsPlacingOrder] = useState(false);
@@ -119,7 +138,6 @@ const CustomerMenu = () => {
 
   useEffect(() => {
     const fetchShopAndMenu = async () => {
-      let currentShopId = shopId;
       let currentShop = null;
 
       if (isUUID(shopId)) {
@@ -131,7 +149,6 @@ const CustomerMenu = () => {
             return;
           }
           currentShop = tableData.shops;
-          currentShopId = currentShop.id;
           setTableNumber(tableData.table_number);
           setTableId(tableData.id);
         } else {
@@ -142,11 +159,10 @@ const CustomerMenu = () => {
         const { data: shopData } = await supabase.from('shops').select('*').eq('owner_unique_id', shopId).single();
         if (shopData) {
           currentShop = shopData;
-          currentShopId = currentShop.id;
           const urlTable = searchParams.get('table');
           if (urlTable) {
             setTableNumber(urlTable);
-            const { data: maybeTable } = await supabase.from('shop_tables').select('*').eq('shop_id', currentShopId).eq('table_number', urlTable).single();
+            const { data: maybeTable } = await supabase.from('shop_tables').select('*').eq('shop_id', currentShop.id).eq('table_number', urlTable).single();
             if (maybeTable) {
               if (!maybeTable.is_active) {
                 setIsTableDeactivated(true);
@@ -161,7 +177,6 @@ const CustomerMenu = () => {
 
       if (currentShop) {
         setShop(currentShop);
-        // Optimize fetching with Promise.all
         const [catsRes, itmsRes] = await Promise.all([
           supabase.from('categories').select('*').eq('shop_id', currentShop.id),
           supabase.from('items').select('*, categories!inner(shop_id)').eq('categories.shop_id', currentShop.id),
@@ -170,6 +185,20 @@ const CustomerMenu = () => {
 
         if (catsRes.data) setCategories(catsRes.data);
         if (itmsRes.data) setItems(itmsRes.data);
+
+        // Sync last placed order status
+        const lastOrderId = localStorage.getItem(`last_order_id_${currentShop.id}`);
+        if (lastOrderId) {
+          const { data: order } = await supabase
+            .from('orders')
+            .select('*, order_items(*)')
+            .eq('id', lastOrderId)
+            .maybeSingle();
+          
+          if (order && order.status !== 'delivered' && order.status !== 'rejected') {
+            setActiveOrder(order);
+          }
+        }
       }
       setLoading(false);
     };
@@ -241,13 +270,52 @@ const CustomerMenu = () => {
     return () => supabase.removeChannel(channel);
   }, [activeOrder]);
 
-  const addToCart = (itemId) => setCart(prev => ({ ...prev, [itemId]: (prev[itemId] || 0) + 1 }));
-  const removeFromCart = (itemId) => setCart(prev => {
-    const newCart = { ...prev };
-    if (newCart[itemId] > 1) newCart[itemId] -= 1;
-    else delete newCart[itemId];
-    return newCart;
-  });
+  const getCartKey = (itemId, customizations) => {
+    if (!customizations) return itemId;
+    const { spiceLevel, sweetnessLevel, addons, specialInstructions } = customizations;
+    const addonIds = addons ? addons.map(a => a.id).sort().join(',') : '';
+    return `${itemId}_${spiceLevel || ''}_${sweetnessLevel || ''}_${addonIds}_${specialInstructions || ''}`;
+  };
+
+  const addToCart = (item, qty = 1, customizations = null) => {
+    const resolvedItem = typeof item === 'string' ? items.find(i => i.id === item) : item;
+    if (!resolvedItem) return;
+
+    const cartKey = getCartKey(resolvedItem.id, customizations);
+    setCart(prev => {
+      const existing = prev[cartKey];
+      const newQty = (existing ? existing.quantity : 0) + qty;
+      return {
+        ...prev,
+        [cartKey]: {
+          itemId: resolvedItem.id,
+          quantity: newQty,
+          customizations
+        }
+      };
+    });
+  };
+
+  const removeFromCart = (itemId, customizations = null) => {
+    setCart(prev => {
+      const newCart = { ...prev };
+      const targetKey = customizations
+        ? getCartKey(itemId, customizations)
+        : Object.keys(newCart).find(key => key === itemId || key.startsWith(`${itemId}_`));
+
+      if (targetKey && newCart[targetKey]) {
+        if (newCart[targetKey].quantity > 1) {
+          newCart[targetKey] = {
+            ...newCart[targetKey],
+            quantity: newCart[targetKey].quantity - 1
+          };
+        } else {
+          delete newCart[targetKey];
+        }
+      }
+      return newCart;
+    });
+  };
 
   const clearCart = () => {
     setCart({});
@@ -256,14 +324,19 @@ const CustomerMenu = () => {
 
   const getCartTotal = () => {
     let total = 0;
-    Object.keys(cart).forEach(itemId => {
-      const item = items.find(i => i.id === itemId);
-      if (item) total += item.price * cart[itemId];
+    Object.keys(cart).forEach(cartKey => {
+      const cartItem = cart[cartKey];
+      const item = items.find(i => i.id === cartItem.itemId);
+      if (item) {
+        const basePrice = parseFloat(item.price);
+        const addonsPrice = cartItem.customizations?.addons?.reduce((sum, a) => sum + parseFloat(a.price), 0) || 0;
+        total += (basePrice + addonsPrice) * cartItem.quantity;
+      }
     });
     return total;
   };
 
-  const getCartItemCount = () => Object.values(cart).reduce((a, b) => a + b, 0);
+  const getCartItemCount = () => Object.values(cart).reduce((sum, entry) => sum + (entry.quantity || 0), 0);
 
   const placeOrder = async () => {
     if (Object.keys(cart).length === 0) return;
@@ -285,17 +358,66 @@ const CustomerMenu = () => {
 
     setIsPlacingOrder(true);
     
-    // Convert cart to array format for secure RPC
-    const cartItemsArr = Object.keys(cart).map(itemId => ({
-      item_id: itemId,
-      quantity: cart[itemId]
-    }));
+    // Convert cart to array format for secure RPC, resolving add-ons to separate items
+    const cartItemsArr = [];
+    const customizationNotes = [];
+
+    Object.keys(cart).forEach(cartKey => {
+      const cartItem = cart[cartKey];
+      const mainItem = items.find(i => i.id === cartItem.itemId);
+      if (!mainItem) return;
+
+      cartItemsArr.push({
+        item_id: cartItem.itemId,
+        quantity: cartItem.quantity
+      });
+
+      let itemNote = `${mainItem.name}`;
+      const custParts = [];
+
+      if (cartItem.customizations) {
+        const { spiceLevel, sweetnessLevel, addons, specialInstructions } = cartItem.customizations;
+        if (spiceLevel) custParts.push(`Spice: ${spiceLevel}`);
+        if (sweetnessLevel) custParts.push(`Sweetness: ${sweetnessLevel}`);
+        if (specialInstructions) custParts.push(`Note: "${specialInstructions}"`);
+
+        if (addons && addons.length > 0) {
+          const addonNames = [];
+          addons.forEach(addon => {
+            const dbAddonItem = items.find(i => i.name.toLowerCase() === addon.name.toLowerCase());
+            if (dbAddonItem) {
+              cartItemsArr.push({
+                item_id: dbAddonItem.id,
+                quantity: cartItem.quantity
+              });
+              addonNames.push(`${addon.name} (+₹${addon.price})`);
+            } else {
+              addonNames.push(`${addon.name} (Not in DB menu)`);
+            }
+          });
+          if (addonNames.length > 0) {
+            custParts.push(`Add-ons: [${addonNames.join(', ')}]`);
+          }
+        }
+      }
+
+      if (custParts.length > 0) {
+        itemNote += ` (${custParts.join(' | ')})`;
+        customizationNotes.push(itemNote);
+      }
+    });
+
+    let finalNotes = orderNotes;
+    if (customizationNotes.length > 0) {
+      const serializedCustoms = `[CUSTOMIZATIONS: ${customizationNotes.join('; ')}]`;
+      finalNotes = finalNotes ? `${finalNotes} ${serializedCustoms}` : serializedCustoms;
+    }
 
     const { data: orderData, error: orderError } = await supabase.rpc('place_secure_order', {
       p_shop_id: shop.id,
       p_table_number: finalTableNumber,
       p_table_id: tableId,
-      p_notes: orderNotes,
+      p_notes: finalNotes,
       p_cart_items: cartItemsArr
     });
 
@@ -309,7 +431,6 @@ const CustomerMenu = () => {
     // Handle unavailable items response from backend
     if (orderData.error && orderData.error_type === 'items_unavailable') {
       setUnavailableItems(orderData.unavailable_items || []);
-      // Refresh items to sync availability state
       const { data: freshItems } = await supabase
         .from('items')
         .select('*, categories!inner(shop_id)')
@@ -320,6 +441,7 @@ const CustomerMenu = () => {
     }
 
     localStorage.setItem('last_order_placed', getNow().toString());
+    localStorage.setItem(`last_order_id_${shop.id}`, orderData.id);
 
     // Fetch the new order details
     const { data: completeOrder } = await supabase
@@ -337,7 +459,7 @@ const CustomerMenu = () => {
 
   const callWaiter = async () => {
     const lastCall = localStorage.getItem('last_waiter_call');
-    if (lastCall && getNow() - parseInt(lastCall, 10) < 60000) {
+    if (lastCall && getNow() - parseInt(lastCall, 10) < 30000) {
       alert("You already called the waiter recently. Please wait a moment.");
       return;
     }
@@ -366,6 +488,15 @@ const CustomerMenu = () => {
       setTimeout(() => setShowWaiterToast(false), 4000);
     } else {
       alert("Failed to call waiter. Please try again.");
+    }
+  };
+
+  const handleOrderHistoryClick = () => {
+    const lastOrderId = localStorage.getItem(`last_order_id_${shop?.id}`);
+    if (lastOrderId) {
+      window.location.href = `/receipt/${lastOrderId}`;
+    } else {
+      alert("No recent order history found on this device.");
     }
   };
 
@@ -443,6 +574,8 @@ const CustomerMenu = () => {
       
       <MenuHeader 
         shop={shop} 
+        tableNumber={tableNumber}
+        onOrderHistoryClick={handleOrderHistoryClick}
         isDarkMode={isDarkMode} 
         lang={lang} 
         setLang={setLang} 
@@ -462,6 +595,7 @@ const CustomerMenu = () => {
         isDarkMode={isDarkMode}
         t={t}
         getIcon={getIcon}
+        onItemClick={setActiveItemForDetail}
       />
 
       <Cart 
@@ -683,6 +817,14 @@ const CustomerMenu = () => {
           </div>
         </div>
       )}
+
+      {/* Item Detail Modal */}
+      <ItemDetailModal
+        item={activeItemForDetail}
+        isOpen={!!activeItemForDetail}
+        onClose={() => setActiveItemForDetail(null)}
+        onAdd={addToCart}
+      />
 
       {/* Waiter Toast */}
       {showWaiterToast && (

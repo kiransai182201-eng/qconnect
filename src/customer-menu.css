@@ -9,18 +9,18 @@
   --font-heading: 'Playfair Display', serif;
 
   /* Theme Colors (Primary Dark Layout) */
-  --bg-primary: #070a13;
-  --bg-secondary: #0d1220;
+  --bg-primary: #100c0a;
+  --bg-secondary: #17110f;
   --text-primary: #f8fafc;
-  --text-secondary: #94a3b8;
-  --text-muted: #64748b;
+  --text-secondary: #a3a3a3;
+  --text-muted: #737373;
   
-  --color-accent: #ff5e1a;
-  --color-accent-rgb: 255, 94, 26;
-  --color-accent-hover: #fa4f05;
-  --color-accent-light: rgba(255, 94, 26, 0.12);
+  --color-accent: #ff6d00;
+  --color-accent-rgb: 255, 109, 0;
+  --color-accent-hover: #ff8f00;
+  --color-accent-light: rgba(255, 109, 0, 0.12);
   
-  --card-bg: rgba(17, 24, 39, 0.7);
+  --card-bg: #1c1512;
   --card-border: rgba(255, 255, 255, 0.05);
   --card-shadow: 
     0 12px 28px -10px rgba(0, 0, 0, 0.6), 
@@ -808,4 +808,181 @@
 
 .customer-cart-badge-count::after {
   content: attr(data-count);
+}
+
+/* Redesigned 3-Column Menu Grid */
+.customer-menu-grid-3col {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 0.6rem;
+  padding: 0 1rem;
+  margin-bottom: 2rem;
+}
+
+/* Redesigned Vertical Card */
+.customer-vertical-item-card {
+  display: flex;
+  flex-direction: column;
+  background-color: var(--card-bg);
+  border: 1px solid var(--card-border);
+  border-radius: 16px;
+  padding: 0.5rem;
+  position: relative;
+  transition: transform 0.2s ease, border-color 0.2s ease, box-shadow 0.2s ease;
+  cursor: pointer;
+  min-width: 0;
+  overflow: hidden;
+}
+
+.customer-vertical-item-card:hover {
+  transform: translateY(-2px);
+  border-color: rgba(255, 109, 0, 0.25);
+  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.3);
+}
+
+.customer-vertical-image-wrapper {
+  position: relative;
+  width: 100%;
+  aspect-ratio: 1 / 1;
+  border-radius: 12px;
+  overflow: hidden;
+  background-color: rgba(255, 255, 255, 0.02);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.customer-vertical-image {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  transition: transform 0.3s ease;
+}
+
+.customer-vertical-item-card:hover .customer-vertical-image {
+  transform: scale(1.05);
+}
+
+.customer-vertical-avail-badge {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  background-color: rgba(16, 185, 129, 0.9);
+  color: white;
+  font-size: 0.6rem;
+  font-weight: 700;
+  padding: 2px 6px;
+  border-radius: 6px;
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  box-shadow: 0 2px 6px rgba(0,0,0,0.15);
+  backdrop-filter: blur(4px);
+}
+
+.customer-vertical-avail-dot {
+  width: 4px;
+  height: 4px;
+  border-radius: 50%;
+  background-color: #ffffff;
+}
+
+.customer-vertical-content {
+  display: flex;
+  flex-direction: column;
+  padding: 0.35rem 0.15rem 0.25rem 0.15rem;
+  flex: 1;
+  gap: 3px;
+  min-width: 0;
+}
+
+.customer-vertical-category {
+  font-size: 0.58rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  color: var(--text-muted);
+  letter-spacing: 0.05em;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.customer-vertical-title {
+  font-size: 0.76rem;
+  font-weight: 700;
+  color: var(--text-primary);
+  margin: 0;
+  line-height: 1.25;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  height: 2.5em; /* fixed height for alignment */
+}
+
+.customer-vertical-stars {
+  display: flex;
+  color: #ffb300;
+  font-size: 0.6rem;
+  margin-top: 1px;
+}
+
+.customer-vertical-price {
+  font-size: 0.95rem;
+  font-weight: 800;
+  color: var(--color-accent);
+  margin-top: auto;
+}
+
+.customer-vertical-btn {
+  width: 100%;
+  background: transparent;
+  border: 1px solid var(--color-accent);
+  color: var(--text-primary);
+  border-radius: 8px;
+  font-size: 0.68rem;
+  font-weight: 700;
+  padding: 5px 0;
+  cursor: pointer;
+  transition: all 0.2s;
+  text-align: center;
+  margin-top: 0.35rem;
+}
+
+.customer-vertical-btn:hover {
+  background-color: var(--color-accent);
+  color: white;
+}
+
+/* Redesigned Counter for Vertical Card */
+.customer-vertical-counter {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  background-color: rgba(255, 255, 255, 0.03);
+  border: 1px solid var(--card-border);
+  border-radius: 8px;
+  padding: 3px 6px;
+  margin-top: 0.35rem;
+  box-sizing: border-box;
+}
+
+.customer-vertical-counter button {
+  background: none;
+  border: none;
+  color: var(--color-accent);
+  font-size: 0.9rem;
+  font-weight: 700;
+  cursor: pointer;
+  padding: 0 4px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.customer-vertical-counter span {
+  font-size: 0.75rem;
+  font-weight: 800;
+  color: var(--text-primary);
 }

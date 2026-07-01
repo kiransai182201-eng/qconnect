@@ -38,9 +38,7 @@ const getMockDB = () => {
           accept_orders: true,
           auto_approval: false,
           mobile: '1234567890',
-          address: '123 Pizza St',
-          email: 'example@gmail.com',
-          is_approved: true
+          address: '123 Pizza St'
         }
       ],
       categories: [
@@ -77,7 +75,8 @@ const getMockDB = () => {
       order_items: [],
       notifications: [],
       menu_views: [],
-      feedback: []
+      feedback: [],
+      registrations: []
     };
     localStorage.setItem(MOCK_DB_KEY, JSON.stringify(db));
   } else {
@@ -490,12 +489,17 @@ const mockSupabase = {
   auth: {
     signUp: async ({ email, password, options }) => {
       const db = getMockDB();
-      const existing = db.users.find(u => u.email === email);
+      const existing = db.users.find(u => u.email?.toLowerCase() === email.toLowerCase());
       if (existing) {
-        return { data: { user: null }, error: { message: 'User already exists' } };
+        // For mock: if user exists, just sign them in instead of erroring
+        existing.password = password;
+        if (options?.data?.full_name) existing.full_name = options.data.full_name;
+        saveMockDB(db);
+        localStorage.setItem('supabase_mock_session', JSON.stringify({ user: existing }));
+        return { data: { user: existing, session: { access_token: 'mock-token', user: existing } }, error: null };
       }
       const fullName = options?.data?.full_name || '';
-      const newUser = { id: 'user-' + Math.random().toString(36).substr(2, 9), email, password, full_name: fullName };
+      const newUser = { id: 'user-' + Math.random().toString(36).substr(2, 9), email: email.toLowerCase(), password, full_name: fullName };
       db.users.push(newUser);
       saveMockDB(db);
       localStorage.setItem('supabase_mock_session', JSON.stringify({ user: newUser }));
@@ -504,7 +508,7 @@ const mockSupabase = {
 
     signInWithPassword: async ({ email, password }) => {
       const db = getMockDB();
-      let user = db.users.find(u => u.email === email && u.password === password);
+      let user = db.users.find(u => u.email?.toLowerCase() === email.toLowerCase() && u.password === password);
       if (!user && email === 'example@gmail.com' && password === 'password123') {
         user = { id: 'user-1', email: 'example@gmail.com', password: 'password123', full_name: 'Kitchen Staff' };
         db.users.push(user);
@@ -512,7 +516,7 @@ const mockSupabase = {
       }
       if (user) {
         localStorage.setItem('supabase_mock_session', JSON.stringify({ user }));
-        return { data: { user, session: { access_token: 'mock-token' } }, error: null };
+        return { data: { user, session: { access_token: 'mock-token', user } }, error: null };
       }
       return { data: { user: null }, error: { message: 'Invalid login credentials' } };
     },
@@ -541,14 +545,34 @@ const mockSupabase = {
       return { error: null };
     },
 
-    signInWithOAuth: async ({ options }) => {
+    signInWithOAuth: async ({ provider, options }) => {
       const db = getMockDB();
-      const mockUser = { id: 'user-google', email: 'googleuser@gmail.com', password: '', full_name: 'Google User' };
-      db.users.push(mockUser);
-      saveMockDB(db);
-      localStorage.setItem('supabase_mock_session', JSON.stringify({ user: mockUser }));
-      if (options?.redirectTo) {
-        window.location.href = options.redirectTo;
+      // Check if redirect target is admin — if so, sign in as admin
+      const isAdminFlow = options?.redirectTo?.includes('/admin');
+      const adminEmails = ['sunnykiran715@gmail.com', 'revanthrevanth4248@gmail.com'];
+      
+      if (isAdminFlow) {
+        // Sign in as first admin user
+        let adminUser = db.users.find(u => adminEmails.includes(u.email?.toLowerCase()));
+        if (!adminUser) {
+          adminUser = { id: 'user-admin-1', email: 'sunnykiran715@gmail.com', password: 'password123', full_name: 'Sunny Kiran' };
+          db.users.push(adminUser);
+          saveMockDB(db);
+        }
+        localStorage.setItem('supabase_mock_session', JSON.stringify({ user: adminUser }));
+        window.location.href = '/admin/dashboard';
+      } else {
+        // Owner Google sign-in — use first non-admin user or create one
+        let ownerUser = db.users.find(u => !adminEmails.includes(u.email?.toLowerCase()) && u.email !== 'example@gmail.com');
+        if (!ownerUser) {
+          ownerUser = { id: 'user-google-' + Date.now(), email: 'googleowner@gmail.com', password: '', full_name: 'Google Owner' };
+          db.users.push(ownerUser);
+          saveMockDB(db);
+        }
+        localStorage.setItem('supabase_mock_session', JSON.stringify({ user: ownerUser }));
+        if (options?.redirectTo) {
+          window.location.href = options.redirectTo;
+        }
       }
       return { error: null };
     }
@@ -590,8 +614,70 @@ const mockSupabase = {
       const sessionStr = localStorage.getItem('supabase_mock_session');
       if (sessionStr) {
         const session = JSON.parse(sessionStr);
+        const userId = session.user.id;
         const db = getMockDB();
-        db.users = db.users.filter(u => u.id !== session.user.id);
+
+        // 1. Find all shops owned by this user
+        const userShops = db.shops ? db.shops.filter(s => s.user_id === userId) : [];
+        const shopIds = userShops.map(s => s.id);
+
+        // 2. Find all categories under these shops
+        const userCategories = db.categories ? db.categories.filter(c => shopIds.includes(c.shop_id)) : [];
+        const categoryIds = userCategories.map(c => c.id);
+
+        // 3. Find all orders under these shops
+        const userOrders = db.orders ? db.orders.filter(o => shopIds.includes(o.shop_id)) : [];
+        const orderIds = userOrders.map(o => o.id);
+
+        // 4. Cascade delete:
+        // Delete items belonging to user categories
+        if (db.items) {
+          db.items = db.items.filter(i => !categoryIds.includes(i.category_id));
+        }
+
+        // Delete categories
+        if (db.categories) {
+          db.categories = db.categories.filter(c => !shopIds.includes(c.shop_id));
+        }
+
+        // Delete shop_tables
+        if (db.shop_tables) {
+          db.shop_tables = db.shop_tables.filter(t => !shopIds.includes(t.shop_id));
+        }
+
+        // Delete order_items belonging to user orders
+        if (db.order_items) {
+          db.order_items = db.order_items.filter(oi => !orderIds.includes(oi.order_id));
+        }
+
+        // Delete orders
+        if (db.orders) {
+          db.orders = db.orders.filter(o => !shopIds.includes(o.shop_id));
+        }
+
+        // Delete notifications
+        if (db.notifications) {
+          db.notifications = db.notifications.filter(n => !shopIds.includes(n.shop_id));
+        }
+
+        // Delete feedback
+        if (db.feedback) {
+          db.feedback = db.feedback.filter(f => !shopIds.includes(f.shop_id));
+        }
+
+        // Delete menu_views
+        if (db.menu_views) {
+          db.menu_views = db.menu_views.filter(mv => !shopIds.includes(mv.shop_id));
+        }
+
+        // Delete shops
+        if (db.shops) {
+          db.shops = db.shops.filter(s => s.user_id !== userId);
+        }
+
+        // Delete user
+        db.users = db.users.filter(u => u.id !== userId);
+
         saveMockDB(db);
       }
       localStorage.removeItem('supabase_mock_session');

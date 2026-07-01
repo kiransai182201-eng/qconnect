@@ -1,7 +1,7 @@
 import React from 'react';
-import { Clock } from 'lucide-react';
+import { Sparkles, Clock } from 'lucide-react';
 
-const MenuHeader = ({ shop, isDarkMode, lang, setLang, t }) => {
+const MenuHeader = ({ shop, tableNumber, onOrderHistoryClick, isDarkMode, lang, setLang, t }) => {
   return (
     <>
       {/* Holiday Mode / Closed Overlay */}
@@ -63,67 +63,52 @@ const MenuHeader = ({ shop, isDarkMode, lang, setLang, t }) => {
         </div>
       )}
 
-      <header className="customer-header-container">
-        <div className="customer-header-banner">
-          <div className="customer-header-overlay">
-            <div className="customer-header-logo">
-              {shop.logo_url ? (
-                <img src={shop.logo_url} alt={`${shop.name} logo`} style={{ width: '100%', height: '100%', objectFit: 'cover' }} loading="lazy" />
-              ) : (
-                <span>☕</span>
-              )}
-            </div>
-            <div style={{ flex: 1, minWidth: 0 }}>
-              <h1 className="customer-shop-title" style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{shop.name}</h1>
-              <p className="customer-proprietor" style={{ margin: '0.25rem 0 0 0', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                Proprietor: {shop.owner_name}
-              </p>
-            </div>
-            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '8px', flexShrink: 0 }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                <span style={{ width: '8px', height: '8px', backgroundColor: '#10b981', borderRadius: '50%', boxShadow: '0 0 8px #10b981' }}></span>
-                <span style={{ fontSize: '11px', fontWeight: '700', color: '#10b981', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Menu live</span>
-              </div>
-              
-              {/* Language Switcher Pill */}
-              <button 
-                aria-label={`Switch language to ${lang === 'EN' ? 'Telugu' : 'English'}`}
-                style={{ 
-                  display: 'flex', 
-                  backgroundColor: 'rgba(7, 10, 19, 0.65)', 
-                  border: '1px solid rgba(255, 255, 255, 0.1)', 
-                  borderRadius: '30px', 
-                  padding: '3px', 
-                  cursor: 'pointer',
-                  backdropFilter: 'blur(8px)',
-                  boxShadow: 'inset 0 1px 3px rgba(0,0,0,0.2)',
-                  transition: 'all 0.2s'
-                }} 
-                onClick={() => setLang(lang === 'EN' ? 'TE' : 'EN')}
-              >
-                <div style={{ 
-                  padding: '3px 10px', 
-                  borderRadius: '20px', 
-                  backgroundColor: lang === 'TE' ? 'var(--color-accent)' : 'transparent', 
-                  color: 'white', 
-                  fontWeight: '800', 
-                  fontSize: '0.7rem', 
-                  transition: 'all 0.25s cubic-bezier(0.4, 0, 0.2, 1)',
-                  boxShadow: lang === 'TE' ? '0 2px 6px rgba(var(--color-accent-rgb), 0.2)' : 'none'
-                }}>TE</div>
-                <div style={{ 
-                  padding: '3px 10px', 
-                  borderRadius: '20px', 
-                  backgroundColor: lang === 'EN' ? 'var(--color-accent)' : 'transparent', 
-                  color: 'white', 
-                  fontWeight: '800', 
-                  fontSize: '0.7rem', 
-                  transition: 'all 0.25s cubic-bezier(0.4, 0, 0.2, 1)',
-                  boxShadow: lang === 'EN' ? '0 2px 6px rgba(var(--color-accent-rgb), 0.2)' : 'none'
-                }}>EN</div>
-              </button>
-            </div>
+      <header className="customer-header-container" style={{ padding: '1rem 1rem 0.5rem 1rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center', backgroundColor: 'transparent' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+          <div style={{
+            width: '44px',
+            height: '44px',
+            backgroundColor: 'var(--color-accent)',
+            borderRadius: '12px',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            boxShadow: '0 4px 12px rgba(255, 109, 0, 0.25)',
+            flexShrink: 0
+          }}>
+            <Sparkles size={22} color="white" />
           </div>
+          <div>
+            <h1 className="customer-shop-title" style={{ fontSize: '1.25rem', fontWeight: '800', margin: 0, textTransform: 'uppercase', color: '#ffffff', letterSpacing: '0.05em' }}>
+              {shop.name}
+            </h1>
+            <p style={{ margin: '2px 0 0 0', fontSize: '0.78rem', fontWeight: '600', color: 'var(--text-secondary)' }}>
+              Table <span style={{ color: 'var(--color-accent)' }}>{tableNumber || 'Unknown'}</span> • <span style={{ color: '#10b981' }}>Now serving</span>
+            </p>
+          </div>
+        </div>
+
+        <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+          <button
+            onClick={onOrderHistoryClick}
+            style={{
+              backgroundColor: '#2e4a24',
+              color: '#ffffff',
+              border: 'none',
+              borderRadius: '20px',
+              padding: '8px 16px',
+              fontSize: '0.78rem',
+              fontWeight: '700',
+              cursor: 'pointer',
+              boxShadow: '0 4px 10px rgba(46, 74, 36, 0.2)',
+              transition: 'all 0.2s',
+              whiteSpace: 'nowrap'
+            }}
+            onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#385a2c'}
+            onMouseLeave={(e) => e.currentTarget.style.backgroundColor = '#2e4a24'}
+          >
+            Order History
+          </button>
         </div>
       </header>
     </>

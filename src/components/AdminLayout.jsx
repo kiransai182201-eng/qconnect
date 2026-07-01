@@ -7,8 +7,7 @@ import {
   Shield, 
   Store,
   LogOut,
-  Menu,
-  X
+  ClipboardList
 } from 'lucide-react';
 import '../admin-dashboard.css';
 
@@ -23,14 +22,41 @@ const AdminLayout = () => {
   const location = useLocation();
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [pendingCount, setPendingCount] = useState(0);
 
   const getActiveTab = () => {
     const path = location.pathname;
     if (path.includes('/admin/owners')) return 'owners';
+    if (path.includes('/admin/registrations')) return 'registrations';
     return 'dashboard';
   };
 
   const currentTab = getActiveTab();
+
+  // Update pending count from mock DB
+  useEffect(() => {
+    const updatePendingCount = () => {
+      try {
+        const db = JSON.parse(localStorage.getItem('supabase_mock_db') || '{}');
+        const pending = (db.registrations || []).filter(r => r.status === 'PENDING').length;
+        setPendingCount(pending);
+      } catch (e) {}
+    };
+    updatePendingCount();
+    const interval = setInterval(updatePendingCount, 3000);
+    
+    const handleStorage = (e) => {
+      if (e.key === 'supabase_mock_db' || e.key === 'supabase_mock_broadcast') {
+        updatePendingCount();
+      }
+    };
+    window.addEventListener('storage', handleStorage);
+    
+    return () => {
+      clearInterval(interval);
+      window.removeEventListener('storage', handleStorage);
+    };
+  }, []);
 
   useEffect(() => {
     const checkAdmin = async () => {
@@ -39,12 +65,6 @@ const AdminLayout = () => {
         const authUser = session?.user;
 
         if (!authUser || !ADMIN_EMAILS.includes(authUser.email?.toLowerCase())) {
-          navigate('/admin');
-          return;
-        }
-
-        const pinVerified = sessionStorage.getItem('admin_pin_verified') === 'true';
-        if (!pinVerified) {
           navigate('/admin');
           return;
         }
@@ -75,9 +95,15 @@ const AdminLayout = () => {
     );
   }
 
+  const tabTitles = {
+    dashboard: 'Admin Dashboard',
+    owners: 'Shop Management',
+    registrations: 'Registrations'
+  };
+
   const sidebarItems = [
     { id: 'dashboard', label: 'Dashboard', path: '/admin/dashboard', icon: LayoutGrid },
-    { id: 'owners', label: 'Shop Owners', path: '/admin/owners', icon: Users },
+    { id: 'owners', label: 'Shop Owners', path: '/admin/owners', icon: Users, badge: null },
     { id: 'owner-panel', label: 'Owner Panel', path: '/dashboard', icon: Store }
   ];
 
@@ -132,7 +158,16 @@ const AdminLayout = () => {
       <div className="admin-main">
         <header className="admin-topbar">
           <h2 className="admin-topbar-title">
-            {currentTab === 'dashboard' ? 'Admin Dashboard' : 'Shop Owners'}
+            {tabTitles[currentTab] || 'Admin Dashboard'}
+            {pendingCount > 0 && (
+              <span style={{
+                marginLeft: '10px', padding: '2px 10px', borderRadius: '20px',
+                fontSize: '0.72rem', fontWeight: 600,
+                background: 'rgba(245,158,11,0.12)', color: '#fbbf24'
+              }}>
+                {pendingCount} pending
+              </span>
+            )}
           </h2>
         </header>
 

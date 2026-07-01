@@ -88,26 +88,66 @@ const Orders = () => {
                 <div className="ord-card-body">
                   <h3 style={{ margin: '0 0 16px 0', fontSize: '0.85rem', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '1px', color: 'var(--ord-text-muted)' }}>Items</h3>
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', marginBottom: '24px' }}>
-                    {selectedOrder.order_items && selectedOrder.order_items.map((item) => (
-                      <div key={item.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '12px 16px', backgroundColor: 'var(--ord-surface-low)', borderRadius: '8px', border: '1px solid var(--ord-outline)' }}>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                          <span style={{ fontWeight: '800', color: 'var(--ord-primary)', fontSize: '1.1rem' }}>{item.quantity}x</span>
-                          <span style={{ fontWeight: '600', color: 'var(--ord-text-main)' }}>{item.item_name}</span>
-                        </div>
-                        <span style={{ fontWeight: '700', color: 'var(--ord-text-main)' }}>₹{item.price_at_time * item.quantity}</span>
-                      </div>
-                    ))}
+                    {(() => {
+                      // Parse customizations from notes
+                      const parseCustomizationsFromNotes = (notesText) => {
+                        if (!notesText) return {};
+                        const match = notesText.match(/\[CUSTOMIZATIONS: (.*?)\]/);
+                        if (!match) return {};
+                        const customsText = match[1];
+                        const itemsList = customsText.split('; ');
+                        const result = {};
+                        itemsList.forEach(itemStr => {
+                          const idx = itemStr.indexOf(' (');
+                          if (idx !== -1) {
+                            const name = itemStr.slice(0, idx).trim().toLowerCase();
+                            const options = itemStr.slice(idx + 2, -1); // remove " (" and ")"
+                            result[name] = options;
+                          }
+                        });
+                        return result;
+                      };
+
+                      const customs = parseCustomizationsFromNotes(selectedOrder.notes);
+
+                      return selectedOrder.order_items && selectedOrder.order_items.map((item) => {
+                        const itemCustomization = customs[item.item_name.toLowerCase()];
+                        
+                        return (
+                          <div key={item.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '12px 16px', backgroundColor: 'var(--ord-surface-low)', borderRadius: '8px', border: '1px solid var(--ord-outline)' }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                              <span style={{ fontWeight: '800', color: 'var(--ord-primary)', fontSize: '1.1rem' }}>{item.quantity}x</span>
+                              <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
+                                <span style={{ fontWeight: '600', color: 'var(--ord-text-main)' }}>{item.item_name}</span>
+                                {itemCustomization && (
+                                  <span style={{ fontSize: '0.78rem', color: 'var(--ord-primary)', fontWeight: '600' }}>
+                                    {itemCustomization}
+                                  </span>
+                                )}
+                              </div>
+                            </div>
+                            <span style={{ fontWeight: '700', color: 'var(--ord-text-main)' }}>₹{item.price_at_time * item.quantity}</span>
+                          </div>
+                        );
+                      });
+                    })()}
                   </div>
 
                   {/* Notes */}
-                  {selectedOrder.notes && (
-                    <div style={{ backgroundColor: 'rgba(255, 109, 0, 0.05)', padding: '16px', borderRadius: '12px', borderLeft: '4px solid var(--ord-primary)' }}>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '4px' }}>
-                        <span style={{ fontWeight: '700', color: 'var(--ord-text-main)' }}>Order Notes</span>
+                  {(() => {
+                    if (!selectedOrder.notes) return null;
+                    const displayNotes = selectedOrder.notes.replace(/\[CUSTOMIZATIONS:.*?\]/, '').trim();
+                    if (!displayNotes) return null;
+
+                    return (
+                      <div style={{ backgroundColor: 'rgba(255, 109, 0, 0.05)', padding: '16px', borderRadius: '12px', borderLeft: '4px solid var(--ord-primary)' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '4px' }}>
+                          <span style={{ fontWeight: '700', color: 'var(--ord-text-main)' }}>Order Notes</span>
+                        </div>
+                        <p style={{ margin: 0, fontStyle: 'italic', color: 'var(--ord-text-muted)' }}>"{displayNotes}"</p>
                       </div>
-                      <p style={{ margin: 0, fontStyle: 'italic', color: 'var(--ord-text-muted)' }}>"{selectedOrder.notes}"</p>
-                    </div>
-                  )}
+                    );
+                  })()}
 
                   {/* Action Buttons */}
                   <div className="ord-actions">
