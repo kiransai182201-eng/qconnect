@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useNavigate, useLocation, Outlet } from 'react-router-dom';
-import { supabase } from '../lib/supabase';
+import { supabase, isMockMode } from '../lib/supabase';
 import { 
   LayoutGrid, 
   Users, 
@@ -33,14 +33,25 @@ const AdminLayout = () => {
 
   const currentTab = getActiveTab();
 
-  // Update pending count from mock DB
+  // Update pending count
   useEffect(() => {
-    const updatePendingCount = () => {
+    const updatePendingCount = async () => {
       try {
-        const db = JSON.parse(localStorage.getItem('supabase_mock_db') || '{}');
-        const pending = (db.registrations || []).filter(r => r.status === 'PENDING').length;
-        setPendingCount(pending);
-      } catch (e) {}
+        if (isMockMode) {
+          const db = JSON.parse(localStorage.getItem('supabase_mock_db') || '{}');
+          const pending = (db.registrations || []).filter(r => r.status === 'PENDING').length;
+          setPendingCount(pending);
+        } else {
+          const { count, error } = await supabase.from('registrations')
+            .select('*', { count: 'exact', head: true })
+            .eq('status', 'PENDING');
+          if (!error && count !== null) {
+            setPendingCount(count);
+          }
+        }
+      } catch (e) {
+        console.error('Error fetching pending count:', e);
+      }
     };
     updatePendingCount();
     const interval = setInterval(updatePendingCount, 3000);

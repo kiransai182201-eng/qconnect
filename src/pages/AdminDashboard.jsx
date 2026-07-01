@@ -316,6 +316,22 @@ const AdminDashboard = () => {
 
   return (
     <div className="admin-dashboard-page">
+      <div style={{
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        padding: '12px 20px',
+        borderRadius: '12px',
+        marginBottom: '20px',
+        fontSize: '0.85rem',
+        fontWeight: '600',
+        background: isMockMode ? 'rgba(239, 68, 68, 0.1)' : 'rgba(16, 185, 129, 0.1)',
+        border: isMockMode ? '1px solid rgba(239, 68, 68, 0.2)' : '1px solid rgba(16, 185, 129, 0.2)',
+        color: isMockMode ? '#f87171' : '#34d399'
+      }}>
+        <span>Database Mode: {isMockMode ? '⚠️ Mock Mode (Local Storage)' : '🟢 Real Supabase Connected'}</span>
+        {!isMockMode && <span style={{ fontSize: '0.75rem', opacity: 0.8 }}>URL: {supabase.supabaseUrl}</span>}
+      </div>
       <style>{`
         .admin-dashboard-page { animation: fadeInAdmin 0.3s ease; }
         @keyframes fadeInAdmin { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
