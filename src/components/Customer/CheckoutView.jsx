@@ -18,6 +18,12 @@ const CheckoutView = ({
   const [manualTableNumber, setManualTableNumber] = useState(tableNumber || '');
 
   const paymentMethods = [
+    //     {
+    //   id: 'Pay Online',
+    //   title: 'Pay Online (UPI/Card)',
+    //   subtext: 'Google Pay, PhonePe, Card',
+    //   icon: Wallet,
+    // },
     {
       id: 'Pay at Counter',
       title: 'Pay at Counter',

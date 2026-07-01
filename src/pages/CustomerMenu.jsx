@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { useParams, useSearchParams } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
 import { useLanguage } from '../contexts/LanguageContext';
@@ -261,16 +261,25 @@ const CustomerMenu = () => {
     };
   }, [shop]);
 
+  // Use a ref to track order ID so the subscription doesn't re-fire on every status update
+  const activeOrderIdRef = useRef(null);
   useEffect(() => {
-    if (!activeOrder) return;
-    const channel = supabase.channel(`customer-order-${activeOrder.id}`)
-      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'orders', filter: `id=eq.${activeOrder.id}` }, (payload) => {
+    const orderId = activeOrder?.id;
+    // Only re-subscribe if the order ID itself changed (not just status updates)
+    if (!orderId || orderId === activeOrderIdRef.current) return;
+    activeOrderIdRef.current = orderId;
+
+    const channel = supabase.channel(`customer-order-${orderId}`)
+      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'orders', filter: `id=eq.${orderId}` }, (payload) => {
         setActiveOrder(prev => ({ ...prev, ...payload.new }));
       })
       .subscribe();
       
-    return () => supabase.removeChannel(channel);
-  }, [activeOrder]);
+    return () => {
+      supabase.removeChannel(channel);
+      activeOrderIdRef.current = null;
+    };
+  }, [activeOrder?.id]);
 
   const getCartKey = (itemId, customizations) => {
     if (!customizations) return itemId;
@@ -324,7 +333,7 @@ const CustomerMenu = () => {
     localStorage.removeItem(`cart_${shopId}`);
   };
 
-  const getCartTotal = () => {
+  const getCartTotal = useCallback(() => {
     let total = 0;
     Object.keys(cart).forEach(cartKey => {
       const cartItem = cart[cartKey];
@@ -336,9 +345,9 @@ const CustomerMenu = () => {
       }
     });
     return total;
-  };
+  }, [cart, items]);
 
-  const getCartItemCount = () => Object.values(cart).reduce((sum, entry) => sum + (entry.quantity || 0), 0);
+  const getCartItemCount = useCallback(() => Object.values(cart).reduce((sum, entry) => sum + (entry.quantity || 0), 0), [cart]);
 
   const placeOrder = async (paymentMethod = 'Pay After Meal', customTableNumber = '') => {
     if (Object.keys(cart).length === 0) return;

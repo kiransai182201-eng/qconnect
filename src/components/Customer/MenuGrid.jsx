@@ -276,4 +276,4 @@ const MenuGrid = ({
   );
 };
 
-export default MenuGrid;
+export default React.memo(MenuGrid);
