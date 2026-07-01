@@ -19,12 +19,6 @@ const CheckoutView = ({
 
   const paymentMethods = [
     {
-      id: 'Pay Online',
-      title: 'Pay Online (UPI/Card)',
-      subtext: 'Google Pay, PhonePe, Card',
-      icon: Wallet,
-    },
-    {
       id: 'Pay at Counter',
       title: 'Pay at Counter',
       subtext: 'Settle before you leave',
