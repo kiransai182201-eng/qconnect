@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Clock, CheckCircle, XCircle, RefreshCw, Store, ArrowLeft, Shield } from 'lucide-react';
-import { supabase } from '../lib/supabase';
+import { Clock, CheckCircle, XCircle, RefreshCw, Store, ArrowLeft } from 'lucide-react';
+import { supabase, isMockMode } from '../lib/supabase';
 import '../index.css';
 
 const PendingApproval = () => {
@@ -9,7 +9,85 @@ const PendingApproval = () => {
   const [registration, setRegistration] = useState(null);
   const [status, setStatus] = useState('PENDING'); // PENDING | APPROVED | REJECTED
   const [checking, setChecking] = useState(false);
-  const [pulseAnim, setPulseAnim] = useState(true);
+  const checkApprovalStatus = async (silent = false) => {
+    if (!silent) setChecking(true);
+
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session?.user) return;
+
+      if (isMockMode) {
+        const db = JSON.parse(localStorage.getItem('supabase_mock_db') || '{}');
+        const userEmail = session.user.email?.toLowerCase();
+
+        // Check if shop was created (registration approved)
+        const userShop = (db.shops || []).find(s => {
+          const shopUser = (db.users || []).find(u => u.id === s.user_id);
+          return shopUser?.email?.toLowerCase() === userEmail;
+        });
+
+        if (userShop) {
+          // Re-sign-in as the new shop owner user
+          const shopOwner = (db.users || []).find(u => u.id === userShop.user_id);
+          if (shopOwner) {
+            localStorage.setItem('supabase_mock_session', JSON.stringify({ user: shopOwner }));
+          }
+          setStatus('APPROVED');
+          setTimeout(() => navigate('/dashboard'), 2000);
+          if (!silent) setChecking(false);
+          return;
+        }
+
+        // Check if registration was rejected
+        const reg = (db.registrations || []).find(
+          r => r.email?.toLowerCase() === userEmail
+        );
+        if (reg) {
+          setRegistration(reg);
+          setStatus(reg.status);
+        } else {
+          // Registration record removed (approved and cleaned up)
+          setStatus('APPROVED');
+          // Find and sign in as new user
+          const newUser = (db.users || []).find(u => u.email?.toLowerCase() === userEmail && u.role === 'owner');
+          if (newUser) {
+            localStorage.setItem('supabase_mock_session', JSON.stringify({ user: newUser }));
+          }
+          setTimeout(() => navigate('/dashboard'), 2000);
+        }
+      } else {
+        // Real DB Check
+        // 1. Check if shop exists
+        const { data: shops } = await supabase.from('shops').select('id').eq('user_id', session.user.id).limit(1);
+        if (shops && shops.length > 0) {
+          setStatus('APPROVED');
+          setTimeout(() => navigate('/dashboard'), 2000);
+          if (!silent) setChecking(false);
+          return;
+        }
+
+        // 2. Fetch registration status
+        const { data: reg } = await supabase.from('registrations')
+          .select('*')
+          .eq('user_id', session.user.id)
+          .maybeSingle();
+
+        if (reg) {
+          setRegistration(reg);
+          setStatus(reg.status);
+          if (reg.status === 'APPROVED') {
+            setTimeout(() => navigate('/dashboard'), 2000);
+          }
+        }
+      }
+    } catch (err) {
+      console.error('Error checking approval status:', err);
+    } finally {
+      if (!silent) {
+        setTimeout(() => setChecking(false), 800);
+      }
+    }
+  };
 
   useEffect(() => {
     const loadRegistration = async () => {
@@ -19,38 +97,61 @@ const PendingApproval = () => {
         return;
       }
 
-      const db = JSON.parse(localStorage.getItem('supabase_mock_db') || '{}');
       const userEmail = session.user.email?.toLowerCase();
 
-      // Check if user already has a shop (approved)
-      const userShop = (db.shops || []).find(s => {
-        const shopUser = (db.users || []).find(u => u.id === s.user_id);
-        return shopUser?.email?.toLowerCase() === userEmail;
-      });
+      if (isMockMode) {
+        const db = JSON.parse(localStorage.getItem('supabase_mock_db') || '{}');
 
-      if (userShop) {
-        // Already approved! Redirect to dashboard
-        navigate('/dashboard');
-        return;
-      }
+        // Check if user already has a shop (approved)
+        const userShop = (db.shops || []).find(s => {
+          const shopUser = (db.users || []).find(u => u.id === s.user_id);
+          return shopUser?.email?.toLowerCase() === userEmail;
+        });
 
-      // Find pending registration
-      const reg = (db.registrations || []).find(
-        r => r.email?.toLowerCase() === userEmail
-      );
+        if (userShop) {
+          // Already approved! Redirect to dashboard
+          navigate('/dashboard');
+          return;
+        }
 
-      if (reg) {
-        setRegistration(reg);
-        setStatus(reg.status);
-        if (reg.status === 'REJECTED') {
-          // If rejected, show the rejection screen
+        // Find pending registration
+        const reg = (db.registrations || []).find(
+          r => r.email?.toLowerCase() === userEmail
+        );
+
+        if (reg) {
+          setRegistration(reg);
+          setStatus(reg.status);
+        } else {
+          // No pending registration found — check if shop exists
+          const existingShop = (db.shops || []).find(s => s.user_id === session.user.id);
+          if (existingShop) {
+            navigate('/dashboard');
+          } else {
+            navigate('/register');
+          }
         }
       } else {
-        // No pending registration found — maybe already approved
-        // Check if shop exists for this user
-        const existingShop = (db.shops || []).find(s => s.user_id === session.user.id);
-        if (existingShop) {
+        // Real DB Check
+        // 1. Check if shop exists
+        const { data: shops } = await supabase.from('shops').select('id').eq('user_id', session.user.id).limit(1);
+        if (shops && shops.length > 0) {
           navigate('/dashboard');
+          return;
+        }
+
+        // 2. Fetch registration status
+        const { data: reg } = await supabase.from('registrations')
+          .select('*')
+          .eq('user_id', session.user.id)
+          .maybeSingle();
+
+        if (reg) {
+          setRegistration(reg);
+          setStatus(reg.status);
+          if (reg.status === 'APPROVED') {
+            navigate('/dashboard');
+          }
         } else {
           navigate('/register');
         }
@@ -81,56 +182,6 @@ const PendingApproval = () => {
     window.addEventListener('storage', handleStorageChange);
     return () => window.removeEventListener('storage', handleStorageChange);
   }, []);
-
-  const checkApprovalStatus = async (silent = false) => {
-    if (!silent) setChecking(true);
-
-    const { data: { session } } = await supabase.auth.getSession();
-    if (!session?.user) return;
-
-    const db = JSON.parse(localStorage.getItem('supabase_mock_db') || '{}');
-    const userEmail = session.user.email?.toLowerCase();
-
-    // Check if shop was created (registration approved)
-    const userShop = (db.shops || []).find(s => {
-      const shopUser = (db.users || []).find(u => u.id === s.user_id);
-      return shopUser?.email?.toLowerCase() === userEmail;
-    });
-
-    if (userShop) {
-      // Re-sign-in as the new shop owner user
-      const shopOwner = (db.users || []).find(u => u.id === userShop.user_id);
-      if (shopOwner) {
-        localStorage.setItem('supabase_mock_session', JSON.stringify({ user: shopOwner }));
-      }
-      setStatus('APPROVED');
-      setTimeout(() => navigate('/dashboard'), 2000);
-      if (!silent) setChecking(false);
-      return;
-    }
-
-    // Check if registration was rejected
-    const reg = (db.registrations || []).find(
-      r => r.email?.toLowerCase() === userEmail
-    );
-    if (reg) {
-      setRegistration(reg);
-      setStatus(reg.status);
-    } else {
-      // Registration record removed (approved and cleaned up)
-      setStatus('APPROVED');
-      // Find and sign in as new user
-      const newUser = (db.users || []).find(u => u.email?.toLowerCase() === userEmail && u.role === 'owner');
-      if (newUser) {
-        localStorage.setItem('supabase_mock_session', JSON.stringify({ user: newUser }));
-      }
-      setTimeout(() => navigate('/dashboard'), 2000);
-    }
-
-    if (!silent) {
-      setTimeout(() => setChecking(false), 800);
-    }
-  };
 
   const handleLogout = async () => {
     await supabase.auth.signOut();
@@ -196,7 +247,7 @@ const PendingApproval = () => {
               <div style={{
                 position: 'absolute', inset: 0, borderRadius: '50%',
                 border: '3px solid rgba(201, 149, 42, 0.2)',
-                animation: pulseAnim ? 'pulse-ring 2s ease-out infinite' : 'none'
+                animation: 'pulse-ring 2s ease-out infinite'
               }}></div>
               <div style={{
                 width: '100%', height: '100%', borderRadius: '50%',

@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useOutletContext } from 'react-router-dom';
+import { supabase, isMockMode } from '../lib/supabase';
 import {
   Store, Search, Filter, Plus, Eye, Trash2, Pause, Play,
   CheckCircle, XCircle, ChevronDown, MapPin, Phone
@@ -32,11 +33,34 @@ const AdminOwners = () => {
   const [filter, setFilter] = useState('all');
   const [toast, setToast] = useState(null);
 
-  const refreshDB = useCallback(() => setDb(getDB()), []);
+  const refreshDB = useCallback(async () => {
+    if (isMockMode) {
+      setDb(getDB());
+    } else {
+      try {
+        const { data: shops, error } = await supabase.from('shops').select('*');
+        if (error) throw error;
+        setDb({
+          shops: shops || [],
+          registrations: [],
+          users: [], // placeholder for owner checks compatibility
+          shop_tables: []
+        });
+      } catch (err) {
+        console.error('Error fetching shops in AdminOwners:', err);
+      }
+    }
+  }, []);
 
   useEffect(() => {
+    const timer = setTimeout(() => {
+      refreshDB();
+    }, 0);
     const interval = setInterval(refreshDB, 3000);
-    return () => clearInterval(interval);
+    return () => {
+      clearTimeout(timer);
+      clearInterval(interval);
+    };
   }, [refreshDB]);
 
   useEffect(() => {
@@ -73,30 +97,64 @@ const AdminOwners = () => {
     suspended: db.shops.filter(s => s.status === 'suspended').length
   };
 
-  const toggleShopStatus = (shopId) => {
-    const currentDB = getDB();
-    const shop = currentDB.shops.find(s => s.id === shopId);
-    if (!shop) return;
-    if (shop.status === 'suspended') {
-      shop.status = 'published';
-      showToast(`✅ ${shop.name} reactivated`);
+  const toggleShopStatus = async (shopId) => {
+    if (isMockMode) {
+      const currentDB = getDB();
+      const shop = currentDB.shops.find(s => s.id === shopId);
+      if (!shop) return;
+      if (shop.status === 'suspended') {
+        shop.status = 'published';
+        showToast(`✅ ${shop.name} reactivated`);
+      } else {
+        shop.status = 'suspended';
+        showToast(`⏸ ${shop.name} suspended`);
+      }
+      saveDB(currentDB);
+      refreshDB();
     } else {
-      shop.status = 'suspended';
-      showToast(`⏸ ${shop.name} suspended`);
+      try {
+        const shop = db.shops.find(s => s.id === shopId);
+        if (!shop) return;
+
+        const newStatus = shop.status === 'suspended' ? 'published' : 'suspended';
+        const { error } = await supabase.from('shops')
+          .update({ status: newStatus })
+          .eq('id', shopId);
+        if (error) throw error;
+
+        showToast(newStatus === 'published' ? `✅ ${shop.name} reactivated` : `⏸ ${shop.name} suspended`);
+        refreshDB();
+      } catch (err) {
+        console.error('Error toggling shop status:', err);
+        alert(`Failed to update shop status: ${err.message}`);
+      }
     }
-    saveDB(currentDB);
-    refreshDB();
   };
 
-  const deleteShop = (shopId) => {
+  const deleteShop = async (shopId) => {
     if (!confirm('Are you sure you want to delete this shop?')) return;
-    const currentDB = getDB();
-    const shop = currentDB.shops.find(s => s.id === shopId);
-    currentDB.shops = currentDB.shops.filter(s => s.id !== shopId);
-    currentDB.shop_tables = (currentDB.shop_tables || []).filter(t => t.shop_id !== shopId);
-    saveDB(currentDB);
-    refreshDB();
-    showToast(`🗑 Deleted ${shop?.name || 'shop'}`);
+    
+    if (isMockMode) {
+      const currentDB = getDB();
+      const shop = currentDB.shops.find(s => s.id === shopId);
+      currentDB.shops = currentDB.shops.filter(s => s.id !== shopId);
+      currentDB.shop_tables = (currentDB.shop_tables || []).filter(t => t.shop_id !== shopId);
+      saveDB(currentDB);
+      refreshDB();
+      showToast(`🗑 Deleted ${shop?.name || 'shop'}`);
+    } else {
+      try {
+        const shop = db.shops.find(s => s.id === shopId);
+        const { error } = await supabase.from('shops').delete().eq('id', shopId);
+        if (error) throw error;
+
+        showToast(`🗑 Deleted ${shop?.name || 'shop'}`);
+        refreshDB();
+      } catch (err) {
+        console.error('Error deleting shop:', err);
+        alert(`Failed to delete shop: ${err.message}`);
+      }
+    }
   };
 
   const getShopOwner = (shop) => {

@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { ArrowRight, Store, User, Phone, Mail, MapPin, Lock, Eye, EyeOff, Upload, ChevronDown } from 'lucide-react';
-import { supabase } from '../lib/supabase';
+import { supabase, isMockMode } from '../lib/supabase';
 import '../index.css';
 import { useLanguage } from '../contexts/LanguageContext';
 
@@ -68,14 +68,27 @@ const RegisterLogin = () => {
         }
         
         // Check if user has a registration pending
-        const db = JSON.parse(localStorage.getItem('supabase_mock_db') || '{}');
-        const pendingReg = (db.registrations || []).find(
-          r => r.email?.toLowerCase() === userEmail && r.status === 'PENDING'
-        );
-        if (pendingReg) {
-          navigate('/pending-approval');
+        if (isMockMode) {
+          const db = JSON.parse(localStorage.getItem('supabase_mock_db') || '{}');
+          const pendingReg = (db.registrations || []).find(
+            r => r.email?.toLowerCase() === userEmail && r.status === 'PENDING'
+          );
+          if (pendingReg) {
+            navigate('/pending-approval');
+          } else {
+            navigate('/dashboard');
+          }
         } else {
-          navigate('/dashboard');
+          const { data: realReg } = await supabase.from('registrations')
+            .select('status')
+            .eq('email', userEmail)
+            .eq('status', 'PENDING')
+            .maybeSingle();
+          if (realReg) {
+            navigate('/pending-approval');
+          } else {
+            navigate('/dashboard');
+          }
         }
       }
     };
@@ -118,14 +131,27 @@ const RegisterLogin = () => {
       }
 
       // Check if user has a pending registration
-      const db = JSON.parse(localStorage.getItem('supabase_mock_db') || '{}');
-      const pendingReg = (db.registrations || []).find(
-        r => r.email?.toLowerCase() === emailLower && r.status === 'PENDING'
-      );
-      if (pendingReg) {
-        navigate('/pending-approval');
+      if (isMockMode) {
+        const db = JSON.parse(localStorage.getItem('supabase_mock_db') || '{}');
+        const pendingReg = (db.registrations || []).find(
+          r => r.email?.toLowerCase() === emailLower && r.status === 'PENDING'
+        );
+        if (pendingReg) {
+          navigate('/pending-approval');
+        } else {
+          navigate('/dashboard');
+        }
       } else {
-        navigate('/dashboard');
+        const { data: realReg } = await supabase.from('registrations')
+          .select('status')
+          .eq('email', emailLower)
+          .eq('status', 'PENDING')
+          .maybeSingle();
+        if (realReg) {
+          navigate('/pending-approval');
+        } else {
+          navigate('/dashboard');
+        }
       }
     } catch (err) {
       setError(err.message);
@@ -172,48 +198,66 @@ const RegisterLogin = () => {
       });
       if (signUpError) throw signUpError;
 
-      // 2. Add registration to mock DB with PENDING status
-      const db = JSON.parse(localStorage.getItem('supabase_mock_db') || '{}');
-      if (!db.registrations) db.registrations = [];
+      // 2. Add registration to DB
+      if (isMockMode) {
+        const db = JSON.parse(localStorage.getItem('supabase_mock_db') || '{}');
+        if (!db.registrations) db.registrations = [];
 
-      const newRegistration = {
-        id: 'reg-' + Math.random().toString(36).substr(2, 9),
-        shop_name: form.shopName,
-        owner_name: form.ownerName,
-        mobile: form.mobile,
-        email: form.email.toLowerCase(),
-        address: form.address,
-        category: form.category,
-        tables: parseInt(form.tables) || 5,
-        logo_url: logoPreview || null,
-        status: 'PENDING',
-        created_at: new Date().toISOString(),
-        user_id: data?.user?.id || null
-      };
+        const newRegistration = {
+          id: 'reg-' + Math.random().toString(36).substr(2, 9),
+          shop_name: form.shopName,
+          owner_name: form.ownerName,
+          mobile: form.mobile,
+          email: form.email.toLowerCase(),
+          address: form.address,
+          category: form.category,
+          tables: parseInt(form.tables) || 5,
+          logo_url: logoPreview || null,
+          status: 'PENDING',
+          created_at: new Date().toISOString(),
+          user_id: data?.user?.id || null
+        };
 
-      db.registrations.push(newRegistration);
+        db.registrations.push(newRegistration);
 
-      // Also add notification for admin
-      if (!db.notifications) db.notifications = [];
-      db.notifications.unshift({
-        id: 'notif-' + Math.random().toString(36).substr(2, 9),
-        shop_id: null,
-        type: 'registration',
-        title: 'New Shop Registration',
-        message: `${form.shopName} by ${form.ownerName} — Awaiting approval`,
-        created_at: new Date().toISOString(),
-        read: false
-      });
+        // Also add notification for admin
+        if (!db.notifications) db.notifications = [];
+        db.notifications.unshift({
+          id: 'notif-' + Math.random().toString(36).substr(2, 9),
+          shop_id: null,
+          type: 'registration',
+          title: 'New Shop Registration',
+          message: `${form.shopName} by ${form.ownerName} — Awaiting approval`,
+          created_at: new Date().toISOString(),
+          read: false
+        });
 
-      localStorage.setItem('supabase_mock_db', JSON.stringify(db));
+        localStorage.setItem('supabase_mock_db', JSON.stringify(db));
 
-      // Broadcast change so admin.html picks it up
-      localStorage.setItem('supabase_mock_broadcast', JSON.stringify({
-        tableName: 'registrations',
-        eventType: 'INSERT',
-        newRecord: newRegistration,
-        timestamp: Date.now()
-      }));
+        // Broadcast change so admin.html picks it up
+        localStorage.setItem('supabase_mock_broadcast', JSON.stringify({
+          tableName: 'registrations',
+          eventType: 'INSERT',
+          newRecord: newRegistration,
+          timestamp: Date.now()
+        }));
+      } else {
+        const { error: insertError } = await supabase.from('registrations').insert([
+          {
+            shop_name: form.shopName,
+            owner_name: form.ownerName,
+            mobile: form.mobile,
+            email: form.email.toLowerCase(),
+            address: form.address,
+            category: form.category,
+            tables: parseInt(form.tables) || 5,
+            logo_url: logoPreview || null,
+            status: 'PENDING',
+            user_id: data?.user?.id || null
+          }
+        ]);
+        if (insertError) throw insertError;
+      }
 
       // 3. Navigate to pending approval page
       navigate('/pending-approval');

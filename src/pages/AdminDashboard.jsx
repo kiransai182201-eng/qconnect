@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useOutletContext } from 'react-router-dom';
+import { supabase, isMockMode } from '../lib/supabase';
 import {
   Store, Users, Clock, IndianRupee, QrCode, ShoppingCart, Zap,
   CheckCircle, XCircle, ChevronRight, TrendingUp, RefreshCw
@@ -37,14 +38,39 @@ const AdminDashboard = () => {
   const [toast, setToast] = useState(null);
 
   // Reload DB state
-  const refreshDB = useCallback(() => {
-    setDb(getDB());
+  const refreshDB = useCallback(async () => {
+    if (isMockMode) {
+      setDb(getDB());
+    } else {
+      try {
+        const [shopsRes, regsRes] = await Promise.all([
+          supabase.from('shops').select('*'),
+          supabase.from('registrations').select('*')
+        ]);
+        setDb({
+          shops: shopsRes.data || [],
+          registrations: regsRes.data || [],
+          users: [], // placeholder for DB shape compatibility
+          notifications: [],
+          orders: [],
+          menu_views: []
+        });
+      } catch (err) {
+        console.error('Error fetching admin dashboard data:', err);
+      }
+    }
   }, []);
 
   // Auto-refresh every 3 seconds for live status
   useEffect(() => {
+    const timer = setTimeout(() => {
+      refreshDB();
+    }, 0);
     const interval = setInterval(refreshDB, 3000);
-    return () => clearInterval(interval);
+    return () => {
+      clearTimeout(timer);
+      clearInterval(interval);
+    };
   }, [refreshDB]);
 
   // Listen for cross-tab changes
@@ -65,110 +91,209 @@ const AdminDashboard = () => {
   };
 
   // ─── APPROVE REGISTRATION ───
-  const approveRegistration = (regId) => {
-    const currentDB = getDB();
-    const regIdx = currentDB.registrations.findIndex(r => r.id === regId);
-    if (regIdx === -1) return;
-    const reg = currentDB.registrations[regIdx];
+  const approveRegistration = async (regId) => {
+    if (isMockMode) {
+      const currentDB = getDB();
+      const regIdx = currentDB.registrations.findIndex(r => r.id === regId);
+      if (regIdx === -1) return;
+      const reg = currentDB.registrations[regIdx];
 
-    // 1. Create owner user
-    const newUserId = 'user-' + Math.random().toString(36).substr(2, 9);
-    const newUser = {
-      id: newUserId,
-      email: reg.email.toLowerCase(),
-      password: 'password123',
-      full_name: reg.owner_name,
-      role: 'owner'
-    };
+      // 1. Create owner user
+      const newUserId = 'user-' + Math.random().toString(36).substr(2, 9);
+      const newUser = {
+        id: newUserId,
+        email: reg.email.toLowerCase(),
+        password: 'password123',
+        full_name: reg.owner_name,
+        role: 'owner'
+      };
 
-    // 2. Create shop
-    const newShopId = 'shop-' + Math.random().toString(36).substr(2, 9);
-    const shopSlug = reg.shop_name.toLowerCase().replace(/[^a-z0-9]/g, '-').replace(/-+/g, '-');
-    const tableCount = parseInt(reg.tables) || 5;
-    const newShop = {
-      id: newShopId,
-      user_id: newUserId,
-      name: reg.shop_name,
-      owner_name: reg.owner_name,
-      tables: tableCount,
-      logo_url: reg.logo_url || null,
-      status: 'published',
-      owner_unique_id: shopSlug,
-      theme_color: 'dark',
-      description: `Welcome to ${reg.shop_name}`,
-      open_time: '09:00',
-      close_time: '22:00',
-      mobile: reg.mobile,
-      address: reg.address,
-      category: reg.category || 'Restaurant',
-      created_at: new Date().toISOString(),
-      holiday_mode: false,
-      accept_orders: true,
-      auto_approval: false
-    };
+      // 2. Create shop
+      const newShopId = 'shop-' + Math.random().toString(36).substr(2, 9);
+      const shopSlug = reg.shop_name.toLowerCase().replace(/[^a-z0-9]/g, '-').replace(/-+/g, '-');
+      const tableCount = parseInt(reg.tables) || 5;
+      const newShop = {
+        id: newShopId,
+        user_id: newUserId,
+        name: reg.shop_name,
+        owner_name: reg.owner_name,
+        tables: tableCount,
+        logo_url: reg.logo_url || null,
+        status: 'published',
+        owner_unique_id: shopSlug,
+        theme_color: 'dark',
+        description: `Welcome to ${reg.shop_name}`,
+        open_time: '09:00',
+        close_time: '22:00',
+        mobile: reg.mobile,
+        address: reg.address,
+        category: reg.category || 'Restaurant',
+        created_at: new Date().toISOString(),
+        holiday_mode: false,
+        accept_orders: true,
+        auto_approval: false
+      };
 
-    // 3. Generate tables with QR
-    for (let i = 1; i <= tableCount; i++) {
-      currentDB.shop_tables.push({
-        id: 'table-' + Math.random().toString(36).substr(2, 9),
+      // 3. Generate tables with QR
+      for (let i = 1; i <= tableCount; i++) {
+        currentDB.shop_tables.push({
+          id: 'table-' + Math.random().toString(36).substr(2, 9),
+          shop_id: newShopId,
+          table_number: i,
+          table_code: newShopId + '_table_' + i,
+          qr_url: window.location.origin + '/menu/' + shopSlug + '?table=' + i,
+          is_active: true,
+          table_token: String(i)
+        });
+      }
+
+      // 4. Default category
+      currentDB.categories.push({
+        id: 'cat-' + Math.random().toString(36).substr(2, 9),
         shop_id: newShopId,
-        table_number: i,
-        table_code: newShopId + '_table_' + i,
-        qr_url: window.location.origin + '/menu/' + shopSlug + '?table=' + i,
-        is_active: true,
-        table_token: String(i)
+        name: 'Main Menu',
+        icon: 'grid'
       });
+
+      // 5. Subscription
+      if (!currentDB.subscriptions) currentDB.subscriptions = [];
+      currentDB.subscriptions.push({
+        id: 'sub-' + Math.random().toString(36).substr(2, 9),
+        shop_id: newShopId,
+        plan: 'Premium',
+        status: 'ACTIVE'
+      });
+
+      currentDB.users.push(newUser);
+      currentDB.shops.push(newShop);
+      currentDB.registrations.splice(regIdx, 1);
+
+      currentDB.notifications.unshift({
+        id: 'notif-' + Math.random().toString(36).substr(2, 9),
+        shop_id: newShopId,
+        type: 'approved',
+        title: 'Registration Approved',
+        message: `Activated ${reg.shop_name}! ${tableCount} tables & QR codes generated.`,
+        created_at: new Date().toISOString(),
+        read: false
+      });
+
+      saveDB(currentDB);
+      refreshDB();
+      showToast(`✅ Approved ${reg.shop_name}! ${tableCount} Tables & QR Codes created.`);
+    } else {
+      try {
+        const reg = db.registrations.find(r => r.id === regId);
+        if (!reg) return;
+
+        const shopSlug = reg.shop_name.toLowerCase().replace(/[^a-z0-9]/g, '-').replace(/-+/g, '-');
+        const tableCount = parseInt(reg.tables) || 5;
+
+        // 1. Create shop
+        const { data: newShop, error: shopError } = await supabase.from('shops').insert([
+          {
+            user_id: reg.user_id,
+            name: reg.shop_name,
+            owner_name: reg.owner_name,
+            tables: tableCount,
+            logo_url: reg.logo_url || null,
+            status: 'published',
+            owner_unique_id: shopSlug,
+            theme_color: 'dark',
+            description: `Welcome to ${reg.shop_name}`,
+            open_time: '09:00',
+            close_time: '22:00',
+            mobile: reg.mobile,
+            address: reg.address,
+            category: reg.category || 'Restaurant'
+          }
+        ]).select().single();
+
+        if (shopError) throw shopError;
+
+        // 2. Generate tables
+        const tableInserts = [];
+        for (let i = 1; i <= tableCount; i++) {
+          tableInserts.push({
+            shop_id: newShop.id,
+            table_number: i,
+            table_code: newShop.id + '_table_' + i,
+            qr_url: window.location.origin + '/menu/' + shopSlug + '?table=' + i,
+            is_active: true,
+            table_token: String(i)
+          });
+        }
+        const { error: tablesError } = await supabase.from('shop_tables').insert(tableInserts);
+        if (tablesError) throw tablesError;
+
+        // 3. Create default category
+        const { error: catError } = await supabase.from('categories').insert([
+          {
+            shop_id: newShop.id,
+            name: 'Main Menu',
+            icon: 'grid'
+          }
+        ]);
+        if (catError) throw catError;
+
+        // 4. Update registration status
+        const { error: regUpdateError } = await supabase.from('registrations')
+          .update({ status: 'APPROVED' })
+          .eq('id', regId);
+        if (regUpdateError) throw regUpdateError;
+
+        // 5. Send notification
+        await supabase.from('notifications').insert([
+          {
+            shop_id: newShop.id,
+            type: 'approved',
+            title: 'Registration Approved',
+            message: `Activated ${reg.shop_name}! ${tableCount} tables & QR codes generated.`,
+            is_read: false
+          }
+        ]);
+
+        refreshDB();
+        showToast(`✅ Approved ${reg.shop_name}! ${tableCount} Tables & QR Codes created.`);
+      } catch (err) {
+        console.error('Error approving registration:', err);
+        alert(`Failed to approve: ${err.message}`);
+      }
     }
-
-    // 4. Default category
-    currentDB.categories.push({
-      id: 'cat-' + Math.random().toString(36).substr(2, 9),
-      shop_id: newShopId,
-      name: 'Main Menu',
-      icon: 'grid'
-    });
-
-    // 5. Subscription
-    if (!currentDB.subscriptions) currentDB.subscriptions = [];
-    currentDB.subscriptions.push({
-      id: 'sub-' + Math.random().toString(36).substr(2, 9),
-      shop_id: newShopId,
-      plan: 'Premium',
-      status: 'ACTIVE'
-    });
-
-    currentDB.users.push(newUser);
-    currentDB.shops.push(newShop);
-    currentDB.registrations.splice(regIdx, 1);
-
-    currentDB.notifications.unshift({
-      id: 'notif-' + Math.random().toString(36).substr(2, 9),
-      shop_id: newShopId,
-      type: 'approved',
-      title: 'Registration Approved',
-      message: `Activated ${reg.shop_name}! ${tableCount} tables & QR codes generated.`,
-      created_at: new Date().toISOString(),
-      read: false
-    });
-
-    saveDB(currentDB);
-    refreshDB();
-    showToast(`✅ Approved ${reg.shop_name}! ${tableCount} Tables & QR Codes created.`);
   };
 
   // ─── REJECT REGISTRATION ───
-  const rejectRegistration = (regId) => {
+  const rejectRegistration = async (regId) => {
     const reason = prompt('Enter rejection reason:');
     if (reason === null) return;
-    const currentDB = getDB();
-    const regIdx = currentDB.registrations.findIndex(r => r.id === regId);
-    if (regIdx === -1) return;
-    const reg = currentDB.registrations[regIdx];
-    currentDB.registrations[regIdx].status = 'REJECTED';
-    currentDB.registrations[regIdx].rejection_reason = reason;
-    saveDB(currentDB);
-    refreshDB();
-    showToast(`❌ Rejected ${reg.shop_name}`);
+
+    if (isMockMode) {
+      const currentDB = getDB();
+      const regIdx = currentDB.registrations.findIndex(r => r.id === regId);
+      if (regIdx === -1) return;
+      const reg = currentDB.registrations[regIdx];
+      currentDB.registrations[regIdx].status = 'REJECTED';
+      currentDB.registrations[regIdx].rejection_reason = reason;
+      saveDB(currentDB);
+      refreshDB();
+      showToast(`❌ Rejected ${reg.shop_name}`);
+    } else {
+      try {
+        const reg = db.registrations.find(r => r.id === regId);
+        if (!reg) return;
+
+        const { error } = await supabase.from('registrations')
+          .update({ status: 'REJECTED', rejection_reason: reason })
+          .eq('id', regId);
+        if (error) throw error;
+
+        refreshDB();
+        showToast(`❌ Rejected ${reg.shop_name}`);
+      } catch (err) {
+        console.error('Error rejecting registration:', err);
+        alert(`Failed to reject: ${err.message}`);
+      }
+    }
   };
 
   // ─── KPI Data ───

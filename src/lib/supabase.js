@@ -758,7 +758,7 @@ if (typeof window !== 'undefined' && window.location.search.includes('mock=true'
   localStorage.setItem('supabase_mock_mode', 'true');
 }
 
-const isMockMode = typeof window !== 'undefined' && (
+export const isMockMode = typeof window !== 'undefined' && (
   localStorage.getItem('supabase_mock_mode') === 'true' ||
   window.location.search.includes('mock=true') || 
   navigator.webdriver || 
