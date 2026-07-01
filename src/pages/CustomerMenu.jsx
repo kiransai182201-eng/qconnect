@@ -350,7 +350,10 @@ const CustomerMenu = () => {
   const getCartItemCount = useCallback(() => Object.values(cart).reduce((sum, entry) => sum + (entry.quantity || 0), 0), [cart]);
 
   const placeOrder = async (paymentMethod = 'Pay After Meal', customTableNumber = '') => {
-    if (Object.keys(cart).length === 0) return;
+    if (Object.keys(cart).length === 0) {
+      alert("Your cart is empty.");
+      return;
+    }
     
     const lastOrder = localStorage.getItem('last_order_placed');
     if (lastOrder && getNow() - parseInt(lastOrder, 10) < 15000) {
@@ -366,122 +369,140 @@ const CustomerMenu = () => {
 
     setIsPlacingOrder(true);
     
-    // Convert cart to array format for secure RPC, resolving add-ons to separate items
-    const cartItemsArr = [];
-    const customizationNotes = [];
+    try {
+      // Convert cart to array format for secure RPC
+      const cartItemsArr = [];
+      const customizationNotes = [];
 
-    Object.keys(cart).forEach(cartKey => {
-      const cartItem = cart[cartKey];
-      const mainItem = items.find(i => i.id === cartItem.itemId);
-      if (!mainItem) return;
+      Object.keys(cart).forEach(cartKey => {
+        const cartItem = cart[cartKey];
+        const mainItem = items.find(i => i.id === cartItem.itemId);
+        if (!mainItem) return;
 
-      cartItemsArr.push({
-        item_id: cartItem.itemId,
-        quantity: cartItem.quantity
-      });
+        cartItemsArr.push({
+          item_id: cartItem.itemId,
+          quantity: cartItem.quantity
+        });
 
-      let itemNote = `${mainItem.name}`;
-      const custParts = [];
+        let itemNote = `${mainItem.name}`;
+        const custParts = [];
 
-      if (cartItem.customizations) {
-        const { spiceLevel, sweetnessLevel, addons, specialInstructions } = cartItem.customizations;
-        if (spiceLevel) custParts.push(`Spice: ${spiceLevel}`);
-        if (sweetnessLevel) custParts.push(`Sweetness: ${sweetnessLevel}`);
-        if (specialInstructions) custParts.push(`Note: "${specialInstructions}"`);
+        if (cartItem.customizations) {
+          const { spiceLevel, sweetnessLevel, addons, specialInstructions } = cartItem.customizations;
+          if (spiceLevel) custParts.push(`Spice: ${spiceLevel}`);
+          if (sweetnessLevel) custParts.push(`Sweetness: ${sweetnessLevel}`);
+          if (specialInstructions) custParts.push(`Note: "${specialInstructions}"`);
 
-        if (addons && addons.length > 0) {
-          const addonNames = [];
-          addons.forEach(addon => {
-            const dbAddonItem = items.find(i => i.name.toLowerCase() === addon.name.toLowerCase());
-            if (dbAddonItem) {
-              cartItemsArr.push({
-                item_id: dbAddonItem.id,
-                quantity: cartItem.quantity
-              });
-              addonNames.push(`${addon.name} (+₹${addon.price})`);
-            } else {
-              addonNames.push(`${addon.name} (Not in DB menu)`);
+          if (addons && addons.length > 0) {
+            const addonNames = [];
+            addons.forEach(addon => {
+              const dbAddonItem = items.find(i => i.name.toLowerCase() === addon.name.toLowerCase());
+              if (dbAddonItem) {
+                cartItemsArr.push({
+                  item_id: dbAddonItem.id,
+                  quantity: cartItem.quantity
+                });
+                addonNames.push(`${addon.name} (+₹${addon.price})`);
+              } else {
+                addonNames.push(`${addon.name} (Not in DB menu)`);
+              }
+            });
+            if (addonNames.length > 0) {
+              custParts.push(`Add-ons: [${addonNames.join(', ')}]`);
             }
-          });
-          if (addonNames.length > 0) {
-            custParts.push(`Add-ons: [${addonNames.join(', ')}]`);
           }
         }
+
+        if (custParts.length > 0) {
+          itemNote += ` (${custParts.join(' | ')})`;
+          customizationNotes.push(itemNote);
+        }
+      });
+
+      if (cartItemsArr.length === 0) {
+        alert("No valid items found in cart. Please go back and add items.");
+        setIsPlacingOrder(false);
+        return;
       }
 
-      if (custParts.length > 0) {
-        itemNote += ` (${custParts.join(' | ')})`;
-        customizationNotes.push(itemNote);
+      let finalNotes = orderNotes;
+      if (customizationNotes.length > 0) {
+        const serializedCustoms = `[CUSTOMIZATIONS: ${customizationNotes.join('; ')}]`;
+        finalNotes = finalNotes ? `${finalNotes} ${serializedCustoms}` : serializedCustoms;
       }
-    });
 
-    let finalNotes = orderNotes;
-    if (customizationNotes.length > 0) {
-      const serializedCustoms = `[CUSTOMIZATIONS: ${customizationNotes.join('; ')}]`;
-      finalNotes = finalNotes ? `${finalNotes} ${serializedCustoms}` : serializedCustoms;
-    }
+      // Try RPC with payment_method first, then fall back to old signature on any error
+      let orderData, orderError;
+      const basePayload = {
+        p_shop_id: shop.id,
+        p_table_number: finalTableNumber,
+        p_table_id: tableId,
+        p_notes: finalNotes,
+        p_cart_items: cartItemsArr
+      };
 
-    // Try RPC with payment_method first, then fall back to old signature on any error
-    let orderData, orderError;
-    const basePayload = {
-      p_shop_id: shop.id,
-      p_table_number: finalTableNumber,
-      p_table_id: tableId,
-      p_notes: finalNotes,
-      p_cart_items: cartItemsArr
-    };
+      // Attempt 1: with p_payment_method
+      const result = await supabase.rpc('place_secure_order', {
+        ...basePayload,
+        p_payment_method: paymentMethod
+      });
+      orderData = result.data;
+      orderError = result.error;
 
-    // Attempt 1: with p_payment_method
-    const result = await supabase.rpc('place_secure_order', {
-      ...basePayload,
-      p_payment_method: paymentMethod
-    });
-    orderData = result.data;
-    orderError = result.error;
+      // Attempt 2: if first call failed, retry without p_payment_method (old DB schema)
+      if (orderError) {
+        console.warn('RPC attempt 1 failed:', orderError.message, '- retrying without p_payment_method');
+        const fallback = await supabase.rpc('place_secure_order', basePayload);
+        orderData = fallback.data;
+        orderError = fallback.error;
+      }
 
-    // Attempt 2: if first call failed, retry without p_payment_method (old DB schema)
-    if (orderError) {
-      console.warn('RPC with p_payment_method failed, retrying without it:', orderError.message);
-      const fallback = await supabase.rpc('place_secure_order', basePayload);
-      orderData = fallback.data;
-      orderError = fallback.error;
-    }
+      if (orderError) {
+        alert(`Order failed: ${orderError.message || 'Unknown error'}. Please try again.`);
+        console.error('Order RPC error:', orderError);
+        setIsPlacingOrder(false);
+        return;
+      }
 
-    if (orderError || !orderData) {
-      alert("Failed to place order. Please try again.");
-      console.error('Order RPC error:', orderError);
+      if (!orderData) {
+        alert("Order returned empty response. Please try again.");
+        setIsPlacingOrder(false);
+        return;
+      }
+
+      // Handle unavailable items response from backend
+      if (orderData.error && orderData.error_type === 'items_unavailable') {
+        setUnavailableItems(orderData.unavailable_items || []);
+        const { data: freshItems } = await supabase
+          .from('items')
+          .select('*, categories!inner(shop_id)')
+          .eq('categories.shop_id', shop.id);
+        if (freshItems) setItems(freshItems);
+        setIsPlacingOrder(false);
+        return;
+      }
+
+      localStorage.setItem('last_order_placed', getNow().toString());
+      localStorage.setItem(`last_order_id_${shop.id}`, orderData.id);
+
+      // Fetch the new order details
+      const { data: completeOrder } = await supabase
+        .from('orders')
+        .select('*, order_items(*)')
+        .eq('id', orderData.id)
+        .single();
+
+      setActiveOrder(completeOrder);
+      setCart({});
+      localStorage.removeItem(`cart_${shopId}`);
+      setIsCartOpen(false);
+      setIsCheckoutOpen(false);
+    } catch (err) {
+      console.error('Unexpected error placing order:', err);
+      alert(`Something went wrong: ${err.message || err}. Please try again.`);
+    } finally {
       setIsPlacingOrder(false);
-      return;
     }
-
-    // Handle unavailable items response from backend
-    if (orderData.error && orderData.error_type === 'items_unavailable') {
-      setUnavailableItems(orderData.unavailable_items || []);
-      const { data: freshItems } = await supabase
-        .from('items')
-        .select('*, categories!inner(shop_id)')
-        .eq('categories.shop_id', shop.id);
-      if (freshItems) setItems(freshItems);
-      setIsPlacingOrder(false);
-      return;
-    }
-
-    localStorage.setItem('last_order_placed', getNow().toString());
-    localStorage.setItem(`last_order_id_${shop.id}`, orderData.id);
-
-    // Fetch the new order details
-    const { data: completeOrder } = await supabase
-      .from('orders')
-      .select('*, order_items(*)')
-      .eq('id', orderData.id)
-      .single();
-
-    setActiveOrder(completeOrder);
-    setCart({});
-    localStorage.removeItem(`cart_${shopId}`);
-    setIsCartOpen(false);
-    setIsCheckoutOpen(false);
-    setIsPlacingOrder(false);
   };
 
   const callWaiter = async () => {
