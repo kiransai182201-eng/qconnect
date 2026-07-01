@@ -421,26 +421,28 @@ const CustomerMenu = () => {
       finalNotes = finalNotes ? `${finalNotes} ${serializedCustoms}` : serializedCustoms;
     }
 
-    // Try RPC with payment_method; fall back to old signature if DB hasn't been migrated yet
+    // Try RPC with payment_method first, then fall back to old signature on any error
     let orderData, orderError;
-    const rpcPayload = {
+    const basePayload = {
       p_shop_id: shop.id,
       p_table_number: finalTableNumber,
       p_table_id: tableId,
       p_notes: finalNotes,
-      p_cart_items: cartItemsArr,
-      p_payment_method: paymentMethod
+      p_cart_items: cartItemsArr
     };
 
-    const result = await supabase.rpc('place_secure_order', rpcPayload);
+    // Attempt 1: with p_payment_method
+    const result = await supabase.rpc('place_secure_order', {
+      ...basePayload,
+      p_payment_method: paymentMethod
+    });
     orderData = result.data;
     orderError = result.error;
 
-    // Fallback: if error mentions unknown parameter, retry without p_payment_method
-    if (orderError && (orderError.message || '').includes('payment_method')) {
-      console.warn('Falling back to RPC without p_payment_method');
-      const { p_payment_method, ...fallbackPayload } = rpcPayload;
-      const fallback = await supabase.rpc('place_secure_order', fallbackPayload);
+    // Attempt 2: if first call failed, retry without p_payment_method (old DB schema)
+    if (orderError) {
+      console.warn('RPC with p_payment_method failed, retrying without it:', orderError.message);
+      const fallback = await supabase.rpc('place_secure_order', basePayload);
       orderData = fallback.data;
       orderError = fallback.error;
     }
