@@ -252,6 +252,11 @@ class MockQueryBuilder {
     return this;
   }
 
+  ilike(column, value) {
+    this.filters.push({ type: 'ilike', column, value });
+    return this;
+  }
+
   gte(column, value) {
     this.filters.push({ type: 'gte', column, value });
     return this;
@@ -367,6 +372,12 @@ class MockQueryBuilder {
             filtered = filtered.filter(row => row[filter.column] !== filter.value);
           } else if (filter.type === 'in') {
             filtered = filtered.filter(row => filter.values.includes(row[filter.column]));
+          } else if (filter.type === 'ilike') {
+            const valLower = String(filter.value).toLowerCase().replace(/%/g, '');
+            filtered = filtered.filter(row => {
+              const rowVal = String(row[filter.column] || '').toLowerCase();
+              return rowVal.includes(valLower);
+            });
           } else if (filter.type === 'gte') {
             filtered = filtered.filter(row => row[filter.column] >= filter.value);
           } else if (filter.type === 'lte') {
