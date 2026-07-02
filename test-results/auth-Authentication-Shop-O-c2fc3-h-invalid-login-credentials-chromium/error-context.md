@@ -132,7 +132,6 @@ Call log:
     - paragraph [ref=e88]:
       - text: Already have an account?
       - button "Login" [ref=e89]
-  - generic [ref=e91]: "Database Mode: ⚠️ Mock Mode"
 ```
 
 # Test source

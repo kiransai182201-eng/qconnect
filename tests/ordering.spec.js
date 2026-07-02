@@ -39,9 +39,12 @@ test.describe('Customer Ordering & Interaction Flow', () => {
     await expect(cartBar).toContainText('1 ITEM');
     await cartBar.click();
 
-    // Add notes and submit the order
+    // Add notes and proceed to the checkout screen
     await page.fill('#order-notes', 'Extra cheese on pizza please');
     await page.click('#place-order-btn');
+
+    // Confirm the order on the checkout screen (table pre-filled from ?table=1)
+    await page.click('#checkout-place-order-btn');
 
     // Should render Live Progress / Order Status screen
     await expect(page.locator('text=Live Progress')).toBeVisible();

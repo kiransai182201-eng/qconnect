@@ -754,10 +754,18 @@ const mockSupabase = {
       };
 
       db.orders.push(newOrder);
-      orderItems.forEach(oi => {
-        db.order_items.push({ ...oi, order_id: newOrder.id });
+      const insertedOrderItems = orderItems.map(oi => ({ ...oi, order_id: newOrder.id }));
+      insertedOrderItems.forEach(oi => {
+        db.order_items.push(oi);
       });
       saveMockDB(db);
+
+      // Broadcast the INSERT so realtime subscribers (e.g. Owner Dashboard) update live.
+      // The RPC bypasses the generic .insert() path, so it must broadcast explicitly.
+      broadcastMockChange('orders', 'INSERT', newOrder, null);
+      insertedOrderItems.forEach(oi => {
+        broadcastMockChange('order_items', 'INSERT', oi, null);
+      });
 
       return { data: newOrder, error: null };
     }
