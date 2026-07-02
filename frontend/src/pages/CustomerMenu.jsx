@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { useParams, useSearchParams } from 'react-router-dom';
-import { supabase } from '../lib/supabase';
+import { supabase, isMockMode } from '../lib/supabase';
 import { useLanguage } from '../contexts/LanguageContext';
 import { Bell, MessageSquare, X, CheckCircle, Star, AlertTriangle } from 'lucide-react';
 import '../customer-menu.css';
@@ -143,6 +143,7 @@ const CustomerMenu = () => {
       let currentShop = null;
 
       if (isUUID(shopId)) {
+        // 1. Try to look up by table_token
         const { data: tableData } = await supabase.from('shop_tables').select('*, shops(*)').eq('table_token', shopId).single();
         if (tableData) {
           if (!tableData.is_active) {
@@ -154,17 +155,34 @@ const CustomerMenu = () => {
           setTableNumber(String(tableData.table_number));
           setTableId(tableData.id);
         } else {
-          setLoading(false);
-          return;
+          // 2. If not a table token, try to look up as a shop_id directly
+          const { data: shopData } = await supabase.from('shops').select('*').eq('id', shopId).single();
+          if (shopData) {
+            currentShop = shopData;
+            const urlTable = searchParams.get('table');
+            if (urlTable) {
+              setTableNumber(urlTable);
+              const { data: maybeTable } = await supabase.from('shop_tables').select('*').eq('shop_id', currentShop.id).eq('table_number', parseInt(urlTable, 10)).single();
+              if (maybeTable) {
+                if (!maybeTable.is_active) {
+                  setIsTableDeactivated(true);
+                  setLoading(false);
+                  return;
+                }
+                setTableId(maybeTable.id);
+              }
+            }
+          }
         }
       } else {
-        const { data: shopData } = await supabase.from('shops').select('*').eq('owner_unique_id', shopId).single();
+        // 3. Look up by owner_unique_id (slug) case-insensitively
+        const { data: shopData } = await supabase.from('shops').select('*').ilike('owner_unique_id', shopId).single();
         if (shopData) {
           currentShop = shopData;
           const urlTable = searchParams.get('table');
           if (urlTable) {
             setTableNumber(urlTable);
-            const { data: maybeTable } = await supabase.from('shop_tables').select('*').eq('shop_id', currentShop.id).eq('table_number', urlTable).single();
+            const { data: maybeTable } = await supabase.from('shop_tables').select('*').eq('shop_id', currentShop.id).eq('table_number', parseInt(urlTable, 10)).single();
             if (maybeTable) {
               if (!maybeTable.is_active) {
                 setIsTableDeactivated(true);
@@ -906,6 +924,26 @@ const CustomerMenu = () => {
           </div>
         </div>
       )}
+      {/* Database Mode Badge */}
+      <div style={{
+        position: 'fixed',
+        bottom: '16px',
+        right: '16px',
+        padding: '6px 12px',
+        borderRadius: '20px',
+        fontSize: '0.75rem',
+        fontWeight: 'bold',
+        zIndex: 9999,
+        background: isMockMode ? 'rgba(239, 68, 68, 0.95)' : 'rgba(16, 185, 129, 0.95)',
+        color: 'white',
+        boxShadow: '0 2px 8px rgba(0,0,0,0.2)',
+        pointerEvents: 'none',
+        display: 'flex',
+        alignItems: 'center',
+        gap: '4px'
+      }}>
+        <span>{isMockMode ? '⚠️ Mock Mode' : '🟢 Real DB'}</span>
+      </div>
     </div>
   );
 };
