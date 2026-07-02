@@ -754,23 +754,32 @@ const mockSupabase = {
   }
 };
 
-if (typeof window !== 'undefined' && window.location.search.includes('mock=true')) {
-  localStorage.setItem('supabase_mock_mode', 'true');
+if (typeof window !== 'undefined') {
+  if (window.location.search.includes('mock=true')) {
+    localStorage.setItem('supabase_mock_mode', 'true');
+  } else if (window.location.search.includes('mock=false')) {
+    localStorage.setItem('supabase_mock_mode', 'false');
+  } else if (supabaseUrl && !supabaseUrl.includes('placeholder-never-use')) {
+    // If mock mode is explicitly set to false, keep it, otherwise clean it up
+    if (localStorage.getItem('supabase_mock_mode') !== 'false') {
+      localStorage.removeItem('supabase_mock_mode');
+    }
+  }
 }
 
-const isMockMode = typeof window !== 'undefined' && (
+export const isMockMode = typeof window !== 'undefined' && (
   localStorage.getItem('supabase_mock_mode') === 'true' ||
-  window.location.search.includes('mock=true') || 
-  navigator.webdriver || 
-  navigator.userAgent.includes('HeadlessChrome') ||
-  window.__testsprite_mock === true ||
-  !supabaseUrl ||
-  supabaseUrl.includes('placeholder-never-use')
+  (
+    localStorage.getItem('supabase_mock_mode') !== 'false' && (
+      window.location.search.includes('mock=true') || 
+      navigator.webdriver || 
+      navigator.userAgent.includes('HeadlessChrome') ||
+      window.__testsprite_mock === true ||
+      !supabaseUrl ||
+      supabaseUrl.includes('placeholder-never-use')
+    )
+  )
 );
-
-if (isMockMode) {
-  console.log('--- RUNNING SUPABASE IN MOCK MODE (Fallback triggered if credentials missing) ---');
-}
 
 export const supabase = isMockMode ? mockSupabase : realSupabase;
 
@@ -785,5 +794,3 @@ export const checkRateLimit = (action, cooldownMs) => {
   localStorage.setItem(key, now.toString());
   return true; // Allowed
 };
-
-

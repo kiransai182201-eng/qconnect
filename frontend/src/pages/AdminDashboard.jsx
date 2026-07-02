@@ -1,8 +1,9 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useOutletContext } from 'react-router-dom';
+import { supabase, isMockMode } from '../lib/supabase';
 import {
   Store, Users, Clock, IndianRupee, QrCode, ShoppingCart, Zap,
-  CheckCircle, XCircle, ChevronRight, TrendingUp, RefreshCw
+  CheckCircle, XCircle, ChevronRight, RefreshCw
 } from 'lucide-react';
 
 // Helper: read mock DB
@@ -35,16 +36,98 @@ const AdminDashboard = () => {
   const { user } = useOutletContext();
   const [db, setDb] = useState(getDB);
   const [toast, setToast] = useState(null);
+  const [dbError, setDbError] = useState(null);
 
   // Reload DB state
-  const refreshDB = useCallback(() => {
-    setDb(getDB());
+  const refreshDB = useCallback(async () => {
+    if (isMockMode) {
+      setDb(getDB());
+      setDbError(null);
+    } else {
+      try {
+        const [shopsRes, regsRes, ordersRes, viewsRes] = await Promise.all([
+          supabase.from('shops').select('*'),
+          supabase.from('registrations').select('*'),
+          supabase.from('orders').select('*'),
+          supabase.from('menu_views').select('*')
+        ]);
+        
+        if (shopsRes.error) {
+          setDbError(`Shops query failed: ${shopsRes.error.message} (${shopsRes.error.code})`);
+          return;
+        }
+        if (regsRes.error) {
+          setDbError(`Registrations query failed: ${regsRes.error.message} (${regsRes.error.code})`);
+          return;
+        }
+        if (ordersRes.error) {
+          setDbError(`Orders query failed: ${ordersRes.error.message} (${ordersRes.error.code})`);
+          return;
+        }
+        if (viewsRes.error) {
+          setDbError(`Menu views query failed: ${viewsRes.error.message} (${viewsRes.error.code})`);
+          return;
+        }
+
+        setDb({
+          shops: shopsRes.data || [],
+          registrations: regsRes.data || [],
+          users: [], // placeholder for DB shape compatibility
+          notifications: [],
+          orders: ordersRes.data || [],
+          menu_views: viewsRes.data || []
+        });
+        setDbError(null);
+      } catch (err) {
+        console.error('Error fetching admin dashboard data:', err);
+        setDbError(`Unexpected error: ${err.message || err}`);
+      }
+    }
   }, []);
 
-  // Auto-refresh every 3 seconds for live status
+  // Auto-refresh and subscribe to realtime updates
   useEffect(() => {
+    const timer = setTimeout(() => {
+      refreshDB();
+    }, 0);
+
+    // Setup realtime subscription for real DB mode
+    let channel = null;
+    if (!isMockMode) {
+      channel = supabase.channel('realtime-admin-dashboard-changes')
+        .on('postgres_changes', {
+          event: '*',
+          schema: 'public',
+          table: 'registrations'
+        }, () => {
+          refreshDB();
+        })
+        .on('postgres_changes', {
+          event: '*',
+          schema: 'public',
+          table: 'shops'
+        }, () => {
+          refreshDB();
+        })
+        .on('postgres_changes', {
+          event: '*',
+          schema: 'public',
+          table: 'orders'
+        }, () => {
+          refreshDB();
+        })
+        .subscribe();
+    }
+
     const interval = setInterval(refreshDB, 3000);
-    return () => clearInterval(interval);
+
+    return () => {
+      clearTimeout(timer);
+      clearInterval(interval);
+      if (channel) {
+        supabase.removeChannel(channel);
+      }
+    };
   }, [refreshDB]);
 
   // Listen for cross-tab changes
@@ -65,118 +148,258 @@ const AdminDashboard = () => {
   };
 
   // ─── APPROVE REGISTRATION ───
-  const approveRegistration = (regId) => {
-    const currentDB = getDB();
-    const regIdx = currentDB.registrations.findIndex(r => r.id === regId);
-    if (regIdx === -1) return;
-    const reg = currentDB.registrations[regIdx];
+  const approveRegistration = async (regId) => {
+    if (isMockMode) {
+      const currentDB = getDB();
+      const regIdx = currentDB.registrations.findIndex(r => r.id === regId);
+      if (regIdx === -1) return;
+      const reg = currentDB.registrations[regIdx];
 
-    // 1. Create owner user
-    const newUserId = 'user-' + Math.random().toString(36).substr(2, 9);
-    const newUser = {
-      id: newUserId,
-      email: reg.email.toLowerCase(),
-      password: 'password123',
-      full_name: reg.owner_name,
-      role: 'owner'
-    };
+      // 1. Create owner user
+      const newUserId = 'user-' + Math.random().toString(36).substr(2, 9);
+      const newUser = {
+        id: newUserId,
+        email: reg.email.toLowerCase(),
+        password: 'password123',
+        full_name: reg.owner_name,
+        role: 'owner'
+      };
 
-    // 2. Create shop
-    const newShopId = 'shop-' + Math.random().toString(36).substr(2, 9);
-    const shopSlug = reg.shop_name.toLowerCase().replace(/[^a-z0-9]/g, '-').replace(/-+/g, '-');
-    const tableCount = parseInt(reg.tables) || 5;
-    const newShop = {
-      id: newShopId,
-      user_id: newUserId,
-      name: reg.shop_name,
-      owner_name: reg.owner_name,
-      tables: tableCount,
-      logo_url: reg.logo_url || null,
-      status: 'published',
-      owner_unique_id: shopSlug,
-      theme_color: 'dark',
-      description: `Welcome to ${reg.shop_name}`,
-      open_time: '09:00',
-      close_time: '22:00',
-      mobile: reg.mobile,
-      address: reg.address,
-      category: reg.category || 'Restaurant',
-      created_at: new Date().toISOString(),
-      holiday_mode: false,
-      accept_orders: true,
-      auto_approval: false
-    };
+      // 2. Create shop
+      const newShopId = 'shop-' + Math.random().toString(36).substr(2, 9);
+      const shopSlug = reg.shop_name.toLowerCase().replace(/[^a-z0-9]/g, '-').replace(/-+/g, '-');
+      const tableCount = parseInt(reg.tables) || 5;
+      const newShop = {
+        id: newShopId,
+        user_id: newUserId,
+        name: reg.shop_name,
+        owner_name: reg.owner_name,
+        tables: tableCount,
+        logo_url: reg.logo_url || null,
+        status: 'published',
+        owner_unique_id: shopSlug,
+        theme_color: 'dark',
+        description: `Welcome to ${reg.shop_name}`,
+        open_time: '09:00',
+        close_time: '22:00',
+        mobile: reg.mobile,
+        address: reg.address,
+        category: reg.category || 'Restaurant',
+        created_at: new Date().toISOString(),
+        holiday_mode: false,
+        accept_orders: true,
+        auto_approval: false
+      };
 
-    // 3. Generate tables with QR
-    for (let i = 1; i <= tableCount; i++) {
-      currentDB.shop_tables.push({
-        id: 'table-' + Math.random().toString(36).substr(2, 9),
+      // 3. Generate tables with QR
+      for (let i = 1; i <= tableCount; i++) {
+        currentDB.shop_tables.push({
+          id: 'table-' + Math.random().toString(36).substr(2, 9),
+          shop_id: newShopId,
+          table_number: i,
+          table_code: newShopId + '_table_' + i,
+          qr_url: window.location.origin + '/menu/' + shopSlug + '?table=' + i,
+          is_active: true,
+          table_token: String(i)
+        });
+      }
+
+      // 4. Default category
+      currentDB.categories.push({
+        id: 'cat-' + Math.random().toString(36).substr(2, 9),
         shop_id: newShopId,
-        table_number: i,
-        table_code: newShopId + '_table_' + i,
-        qr_url: window.location.origin + '/menu/' + shopSlug + '?table=' + i,
-        is_active: true,
-        table_token: String(i)
+        name: 'Main Menu',
+        icon: 'grid'
       });
+
+      // 5. Subscription
+      if (!currentDB.subscriptions) currentDB.subscriptions = [];
+      currentDB.subscriptions.push({
+        id: 'sub-' + Math.random().toString(36).substr(2, 9),
+        shop_id: newShopId,
+        plan: 'Premium',
+        status: 'ACTIVE'
+      });
+
+      currentDB.users.push(newUser);
+      currentDB.shops.push(newShop);
+      currentDB.registrations.splice(regIdx, 1);
+
+      currentDB.notifications.unshift({
+        id: 'notif-' + Math.random().toString(36).substr(2, 9),
+        shop_id: newShopId,
+        type: 'approved',
+        title: 'Registration Approved',
+        message: `Activated ${reg.shop_name}! ${tableCount} tables & QR codes generated.`,
+        created_at: new Date().toISOString(),
+        read: false
+      });
+
+      saveDB(currentDB);
+      refreshDB();
+      showToast(`✅ Approved ${reg.shop_name}! ${tableCount} Tables & QR Codes created.`);
+    } else {
+      try {
+        const reg = db.registrations.find(r => r.id === regId);
+        if (!reg) return;
+
+        const shopSlug = reg.shop_name.toLowerCase().replace(/[^a-z0-9]/g, '-').replace(/-+/g, '-');
+        const tableCount = parseInt(reg.tables) || 5;
+
+        // 1. Create shop
+        const { data: newShop, error: shopError } = await supabase.from('shops').insert([
+          {
+            user_id: reg.user_id,
+            name: reg.shop_name,
+            owner_name: reg.owner_name,
+            tables: tableCount,
+            logo_url: reg.logo_url || null,
+            status: 'published',
+            owner_unique_id: shopSlug,
+            theme_color: 'dark',
+            description: `Welcome to ${reg.shop_name}`,
+            open_time: '09:00',
+            close_time: '22:00',
+            mobile: reg.mobile,
+            address: reg.address,
+            category: reg.category || 'Restaurant'
+          }
+        ]).select().single();
+
+        if (shopError) throw shopError;
+
+        // 2. Generate tables
+        const tableInserts = [];
+        for (let i = 1; i <= tableCount; i++) {
+          tableInserts.push({
+            shop_id: newShop.id,
+            table_number: i,
+            table_code: newShop.id + '_table_' + i,
+            qr_url: window.location.origin + '/menu/' + shopSlug + '?table=' + i,
+            is_active: true,
+            table_token: String(i)
+          });
+        }
+        const { error: tablesError } = await supabase.from('shop_tables').insert(tableInserts);
+        if (tablesError) throw tablesError;
+
+        // 3. Create default category
+        const { error: catError } = await supabase.from('categories').insert([
+          {
+            shop_id: newShop.id,
+            name: 'Main Menu',
+            icon: 'grid'
+          }
+        ]);
+        if (catError) throw catError;
+
+        // 4. Update registration status
+        const { error: regUpdateError } = await supabase.from('registrations')
+          .update({ 
+            status: 'APPROVED',
+            reviewed_at: new Date().toISOString(),
+            reviewed_by: user?.email || 'Admin'
+          })
+          .eq('id', regId);
+        if (regUpdateError) throw regUpdateError;
+
+        // 5. Send notification
+        await supabase.from('notifications').insert([
+          {
+            shop_id: newShop.id,
+            type: 'approved',
+            title: 'Registration Approved',
+            message: `Activated ${reg.shop_name}! ${tableCount} tables & QR codes generated.`,
+            is_read: false
+          }
+        ]);
+
+        refreshDB();
+        showToast(`✅ Approved ${reg.shop_name}! ${tableCount} Tables & QR Codes created.`);
+      } catch (err) {
+        console.error('Error approving registration:', err);
+        alert(`Failed to approve: ${err.message}`);
+      }
     }
-
-    // 4. Default category
-    currentDB.categories.push({
-      id: 'cat-' + Math.random().toString(36).substr(2, 9),
-      shop_id: newShopId,
-      name: 'Main Menu',
-      icon: 'grid'
-    });
-
-    // 5. Subscription
-    if (!currentDB.subscriptions) currentDB.subscriptions = [];
-    currentDB.subscriptions.push({
-      id: 'sub-' + Math.random().toString(36).substr(2, 9),
-      shop_id: newShopId,
-      plan: 'Premium',
-      status: 'ACTIVE'
-    });
-
-    currentDB.users.push(newUser);
-    currentDB.shops.push(newShop);
-    currentDB.registrations.splice(regIdx, 1);
-
-    currentDB.notifications.unshift({
-      id: 'notif-' + Math.random().toString(36).substr(2, 9),
-      shop_id: newShopId,
-      type: 'approved',
-      title: 'Registration Approved',
-      message: `Activated ${reg.shop_name}! ${tableCount} tables & QR codes generated.`,
-      created_at: new Date().toISOString(),
-      read: false
-    });
-
-    saveDB(currentDB);
-    refreshDB();
-    showToast(`✅ Approved ${reg.shop_name}! ${tableCount} Tables & QR Codes created.`);
   };
 
   // ─── REJECT REGISTRATION ───
-  const rejectRegistration = (regId) => {
+  const rejectRegistration = async (regId) => {
     const reason = prompt('Enter rejection reason:');
     if (reason === null) return;
-    const currentDB = getDB();
-    const regIdx = currentDB.registrations.findIndex(r => r.id === regId);
-    if (regIdx === -1) return;
-    const reg = currentDB.registrations[regIdx];
-    currentDB.registrations[regIdx].status = 'REJECTED';
-    currentDB.registrations[regIdx].rejection_reason = reason;
-    saveDB(currentDB);
-    refreshDB();
-    showToast(`❌ Rejected ${reg.shop_name}`);
+
+    if (isMockMode) {
+      const currentDB = getDB();
+      const regIdx = currentDB.registrations.findIndex(r => r.id === regId);
+      if (regIdx === -1) return;
+      const reg = currentDB.registrations[regIdx];
+      currentDB.registrations[regIdx].status = 'REJECTED';
+      currentDB.registrations[regIdx].rejection_reason = reason;
+      saveDB(currentDB);
+      refreshDB();
+      showToast(`❌ Rejected ${reg.shop_name}`);
+    } else {
+      try {
+        const reg = db.registrations.find(r => r.id === regId);
+        if (!reg) return;
+
+        const { error } = await supabase.from('registrations')
+          .update({ 
+            status: 'REJECTED', 
+            rejection_reason: reason,
+            reviewed_at: new Date().toISOString(),
+            reviewed_by: user?.email || 'Admin'
+          })
+          .eq('id', regId);
+        if (error) throw error;
+
+        refreshDB();
+        showToast(`❌ Rejected ${reg.shop_name}`);
+      } catch (err) {
+        console.error('Error rejecting registration:', err);
+        alert(`Failed to reject: ${err.message}`);
+      }
+    }
   };
 
   // ─── KPI Data ───
   const totalShops = db.shops.length;
   const activeShops = db.shops.filter(s => s.status === 'published' && !s.holiday_mode).length;
   const pendingRegs = db.registrations.filter(r => r.status === 'PENDING').length;
-  const chartData = [18, 32, 28, 45, 52, totalShops || 60];
-  const chartMonths = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun'];
+  
+  // Calculate total revenue from all orders (except rejected ones)
+  const totalRevenue = (db.orders || [])
+    .filter(o => o.status !== 'rejected')
+    .reduce((sum, o) => sum + (parseFloat(o.total_amount) || 0), 0);
+
+  // Calculate orders placed today
+  const startOfToday = new Date();
+  startOfToday.setHours(0, 0, 0, 0);
+  const ordersToday = (db.orders || [])
+    .filter(o => new Date(o.created_at) >= startOfToday)
+    .length;
+
+  // Calculate total QR scans (views)
+  const totalViews = (db.menu_views || []).length;
+
+  // Calculate shop growth dynamically by creation month
+  const currentMonth = new Date().getMonth();
+  const monthCounts = Array(6).fill(0);
+  db.shops.forEach(shop => {
+    const date = new Date(shop.created_at);
+    const diff = currentMonth - date.getMonth() + (12 * (new Date().getFullYear() - date.getFullYear()));
+    if (diff >= 0 && diff < 6) {
+      monthCounts[5 - diff]++;
+    }
+  });
+
+  const chartData = monthCounts.some(c => c > 0) ? monthCounts : [18, 32, 28, 45, 52, totalShops || 60];
+  const chartMonths = [];
+  const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+  for (let i = 5; i >= 0; i--) {
+    const m = (new Date().getMonth() - i + 12) % 12;
+    chartMonths.push(monthNames[m]);
+  }
   const maxChart = Math.max(...chartData, 1);
 
   // Top shops (by number of tables as proxy for size)
@@ -191,6 +414,39 @@ const AdminDashboard = () => {
 
   return (
     <div className="admin-dashboard-page">
+      <div style={{
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        padding: '12px 20px',
+        borderRadius: '12px',
+        marginBottom: '20px',
+        fontSize: '0.85rem',
+        fontWeight: '600',
+        background: isMockMode ? 'rgba(239, 68, 68, 0.1)' : 'rgba(16, 185, 129, 0.1)',
+        border: isMockMode ? '1px solid rgba(239, 68, 68, 0.2)' : '1px solid rgba(16, 185, 129, 0.2)',
+        color: isMockMode ? '#f87171' : '#34d399'
+      }}>
+        <span>Database Mode: {isMockMode ? '⚠️ Mock Mode (Local Storage)' : '🟢 Real Supabase Connected'}</span>
+      </div>
+      {dbError && (
+        <div style={{
+          padding: '16px',
+          borderRadius: '12px',
+          background: 'rgba(239, 68, 68, 0.15)',
+          border: '1px solid rgba(239, 68, 68, 0.3)',
+          color: '#fca5a5',
+          marginBottom: '20px',
+          fontSize: '0.9rem',
+          display: 'flex',
+          flexDirection: 'column',
+          gap: '8px'
+        }}>
+          <span style={{ fontWeight: 'bold' }}>⚠️ Database Query Error:</span>
+          <span>{dbError}</span>
+          <span style={{ fontSize: '0.8rem', opacity: 0.8 }}>Please verify that you have run all SQL migration scripts in your Supabase SQL editor.</span>
+        </div>
+      )}
       <style>{`
         .admin-dashboard-page { animation: fadeInAdmin 0.3s ease; }
         @keyframes fadeInAdmin { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
@@ -345,7 +601,7 @@ const AdminDashboard = () => {
           <div className="adm-kpi-icon green"><IndianRupee size={20} /></div>
           <div>
             <p className="adm-kpi-label">Revenue Monthly</p>
-            <p className="adm-kpi-value">₹24,500</p>
+            <p className="adm-kpi-value">₹{totalRevenue.toLocaleString('en-IN')}</p>
             <p className="adm-kpi-delta">▲ 18% vs last month</p>
           </div>
         </div>
@@ -356,7 +612,7 @@ const AdminDashboard = () => {
         <div className="adm-card">
           <div className="adm-card-head">
             <span className="adm-card-title">Shop Growth</span>
-            <span className="adm-card-sub">Jan – Jun 2026</span>
+            <span className="adm-card-sub">Last 6 Months</span>
           </div>
           <div className="adm-chart-wrap">
             {chartData.map((val, idx) => (
@@ -378,17 +634,17 @@ const AdminDashboard = () => {
             <div className="adm-mini-stat">
               <div className="adm-mini-icon"><QrCode size={16} /></div>
               <div style={{ flex: 1 }}>
-                <div className="adm-mini-label">QR Scans Today</div>
-                <div className="adm-mini-val">1,245</div>
-                <div className="adm-bar-track"><div className="adm-bar-fill" style={{ width: '82%' }}></div></div>
+                <div className="adm-mini-label">Total QR Scans</div>
+                <div className="adm-mini-val">{totalViews.toLocaleString('en-IN')}</div>
+                <div className="adm-bar-track"><div className="adm-bar-fill" style={{ width: `${Math.min(100, Math.round((totalViews / 500) * 100))}%` }}></div></div>
               </div>
             </div>
             <div className="adm-mini-stat">
               <div className="adm-mini-icon"><ShoppingCart size={16} /></div>
               <div style={{ flex: 1 }}>
                 <div className="adm-mini-label">Orders Today</div>
-                <div className="adm-mini-val">{db.orders.length || 456}</div>
-                <div className="adm-bar-track"><div className="adm-bar-fill" style={{ width: '60%' }}></div></div>
+                <div className="adm-mini-val">{ordersToday.toLocaleString('en-IN')}</div>
+                <div className="adm-bar-track"><div className="adm-bar-fill" style={{ width: `${Math.min(100, Math.round((ordersToday / 20) * 100))}%` }}></div></div>
               </div>
             </div>
             <div className="adm-mini-stat">

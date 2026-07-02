@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useOutletContext } from 'react-router-dom';
+import { supabase, isMockMode } from '../lib/supabase';
 import {
   Store, Search, Filter, Plus, Eye, Trash2, Pause, Play,
   CheckCircle, XCircle, ChevronDown, MapPin, Phone
@@ -32,11 +33,42 @@ const AdminOwners = () => {
   const [filter, setFilter] = useState('all');
   const [toast, setToast] = useState(null);
 
-  const refreshDB = useCallback(() => setDb(getDB()), []);
+  const [dbError, setDbError] = useState(null);
+
+  const refreshDB = useCallback(async () => {
+    if (isMockMode) {
+      setDb(getDB());
+      setDbError(null);
+    } else {
+      try {
+        const { data: shops, error } = await supabase.from('shops').select('*');
+        if (error) {
+          setDbError(`Shops query failed: ${error.message} (${error.code})`);
+          return;
+        }
+        setDb({
+          shops: shops || [],
+          registrations: [],
+          users: [], // placeholder for owner checks compatibility
+          shop_tables: []
+        });
+        setDbError(null);
+      } catch (err) {
+        console.error('Error fetching shops in AdminOwners:', err);
+        setDbError(`Unexpected error: ${err.message || err}`);
+      }
+    }
+  }, []);
 
   useEffect(() => {
+    const timer = setTimeout(() => {
+      refreshDB();
+    }, 0);
     const interval = setInterval(refreshDB, 3000);
-    return () => clearInterval(interval);
+    return () => {
+      clearTimeout(timer);
+      clearInterval(interval);
+    };
   }, [refreshDB]);
 
   useEffect(() => {
@@ -73,30 +105,64 @@ const AdminOwners = () => {
     suspended: db.shops.filter(s => s.status === 'suspended').length
   };
 
-  const toggleShopStatus = (shopId) => {
-    const currentDB = getDB();
-    const shop = currentDB.shops.find(s => s.id === shopId);
-    if (!shop) return;
-    if (shop.status === 'suspended') {
-      shop.status = 'published';
-      showToast(`✅ ${shop.name} reactivated`);
+  const toggleShopStatus = async (shopId) => {
+    if (isMockMode) {
+      const currentDB = getDB();
+      const shop = currentDB.shops.find(s => s.id === shopId);
+      if (!shop) return;
+      if (shop.status === 'suspended') {
+        shop.status = 'published';
+        showToast(`✅ ${shop.name} reactivated`);
+      } else {
+        shop.status = 'suspended';
+        showToast(`⏸ ${shop.name} suspended`);
+      }
+      saveDB(currentDB);
+      refreshDB();
     } else {
-      shop.status = 'suspended';
-      showToast(`⏸ ${shop.name} suspended`);
+      try {
+        const shop = db.shops.find(s => s.id === shopId);
+        if (!shop) return;
+
+        const newStatus = shop.status === 'suspended' ? 'published' : 'suspended';
+        const { error } = await supabase.from('shops')
+          .update({ status: newStatus })
+          .eq('id', shopId);
+        if (error) throw error;
+
+        showToast(newStatus === 'published' ? `✅ ${shop.name} reactivated` : `⏸ ${shop.name} suspended`);
+        refreshDB();
+      } catch (err) {
+        console.error('Error toggling shop status:', err);
+        alert(`Failed to update shop status: ${err.message}`);
+      }
     }
-    saveDB(currentDB);
-    refreshDB();
   };
 
-  const deleteShop = (shopId) => {
+  const deleteShop = async (shopId) => {
     if (!confirm('Are you sure you want to delete this shop?')) return;
-    const currentDB = getDB();
-    const shop = currentDB.shops.find(s => s.id === shopId);
-    currentDB.shops = currentDB.shops.filter(s => s.id !== shopId);
-    currentDB.shop_tables = (currentDB.shop_tables || []).filter(t => t.shop_id !== shopId);
-    saveDB(currentDB);
-    refreshDB();
-    showToast(`🗑 Deleted ${shop?.name || 'shop'}`);
+    
+    if (isMockMode) {
+      const currentDB = getDB();
+      const shop = currentDB.shops.find(s => s.id === shopId);
+      currentDB.shops = currentDB.shops.filter(s => s.id !== shopId);
+      currentDB.shop_tables = (currentDB.shop_tables || []).filter(t => t.shop_id !== shopId);
+      saveDB(currentDB);
+      refreshDB();
+      showToast(`🗑 Deleted ${shop?.name || 'shop'}`);
+    } else {
+      try {
+        const shop = db.shops.find(s => s.id === shopId);
+        const { error } = await supabase.from('shops').delete().eq('id', shopId);
+        if (error) throw error;
+
+        showToast(`🗑 Deleted ${shop?.name || 'shop'}`);
+        refreshDB();
+      } catch (err) {
+        console.error('Error deleting shop:', err);
+        alert(`Failed to delete shop: ${err.message}`);
+      }
+    }
   };
 
   const getShopOwner = (shop) => {
@@ -111,6 +177,39 @@ const AdminOwners = () => {
 
   return (
     <div className="admin-owners-page">
+      <div style={{
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        padding: '12px 20px',
+        borderRadius: '12px',
+        marginBottom: '20px',
+        fontSize: '0.85rem',
+        fontWeight: '600',
+        background: isMockMode ? 'rgba(239, 68, 68, 0.1)' : 'rgba(16, 185, 129, 0.1)',
+        border: isMockMode ? '1px solid rgba(239, 68, 68, 0.2)' : '1px solid rgba(16, 185, 129, 0.2)',
+        color: isMockMode ? '#f87171' : '#34d399'
+      }}>
+        <span>Database Mode: {isMockMode ? '⚠️ Mock Mode (Local Storage)' : '🟢 Real Supabase Connected'}</span>
+      </div>
+      {dbError && (
+        <div style={{
+          padding: '16px',
+          borderRadius: '12px',
+          background: 'rgba(239, 68, 68, 0.15)',
+          border: '1px solid rgba(239, 68, 68, 0.3)',
+          color: '#fca5a5',
+          marginBottom: '20px',
+          fontSize: '0.9rem',
+          display: 'flex',
+          flexDirection: 'column',
+          gap: '8px'
+        }}>
+          <span style={{ fontWeight: 'bold' }}>⚠️ Database Query Error:</span>
+          <span>{dbError}</span>
+          <span style={{ fontSize: '0.8rem', opacity: 0.8 }}>Please verify that you have run all SQL migration scripts in your Supabase SQL editor.</span>
+        </div>
+      )}
       <style>{`
         .admin-owners-page { animation: fadeInAdmin 0.3s ease; }
         @keyframes fadeInAdmin { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
