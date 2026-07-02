@@ -52,9 +52,15 @@ CREATE POLICY "Users can view their own registrations" ON public.registrations
 -- 8. Enable Realtime for registrations table safely
 DO $$
 BEGIN
-  IF EXISTS (
+  -- Create publication if it doesn't exist
+  IF NOT EXISTS (
     SELECT 1 FROM pg_publication WHERE pubname = 'supabase_realtime'
-  ) AND NOT EXISTS (
+  ) THEN
+    CREATE PUBLICATION supabase_realtime;
+  END IF;
+
+  -- Add table to publication if not already added
+  IF NOT EXISTS (
     SELECT 1 FROM pg_publication_tables 
     WHERE pubname = 'supabase_realtime' 
     AND schemaname = 'public' 
