@@ -143,8 +143,9 @@ const CustomerMenu = () => {
       let currentShop = null;
 
       if (isUUID(shopId)) {
-        // 1. Try to look up by table_token
-        const { data: tableData } = await supabase.from('shop_tables').select('*, shops(*)').eq('table_token', shopId).single();
+        // 1. Try to look up by table_token.
+        // Use maybeSingle() so a missing/RLS-hidden row returns null instead of a 406 error.
+        const { data: tableData } = await supabase.from('shop_tables').select('*, shops(*)').eq('table_token', shopId).maybeSingle();
         if (tableData) {
           if (!tableData.is_active) {
             setIsTableDeactivated(true);
@@ -156,13 +157,13 @@ const CustomerMenu = () => {
           setTableId(tableData.id);
         } else {
           // 2. If not a table token, try to look up as a shop_id directly
-          const { data: shopData } = await supabase.from('shops').select('*').eq('id', shopId).single();
+          const { data: shopData } = await supabase.from('shops').select('*').eq('id', shopId).maybeSingle();
           if (shopData) {
             currentShop = shopData;
             const urlTable = searchParams.get('table');
             if (urlTable) {
               setTableNumber(urlTable);
-              const { data: maybeTable } = await supabase.from('shop_tables').select('*').eq('shop_id', currentShop.id).eq('table_number', parseInt(urlTable, 10)).single();
+              const { data: maybeTable } = await supabase.from('shop_tables').select('*').eq('shop_id', currentShop.id).eq('table_number', parseInt(urlTable, 10)).maybeSingle();
               if (maybeTable) {
                 if (!maybeTable.is_active) {
                   setIsTableDeactivated(true);
@@ -176,13 +177,13 @@ const CustomerMenu = () => {
         }
       } else {
         // 3. Look up by owner_unique_id (slug) case-insensitively
-        const { data: shopData } = await supabase.from('shops').select('*').eq('owner_unique_id', shopId).single();
+        const { data: shopData } = await supabase.from('shops').select('*').eq('owner_unique_id', shopId).maybeSingle();
         if (shopData) {
           currentShop = shopData;
           const urlTable = searchParams.get('table');
           if (urlTable) {
             setTableNumber(urlTable);
-            const { data: maybeTable } = await supabase.from('shop_tables').select('*').eq('shop_id', currentShop.id).eq('table_number', parseInt(urlTable, 10)).single();
+            const { data: maybeTable } = await supabase.from('shop_tables').select('*').eq('shop_id', currentShop.id).eq('table_number', parseInt(urlTable, 10)).maybeSingle();
             if (maybeTable) {
               if (!maybeTable.is_active) {
                 setIsTableDeactivated(true);
