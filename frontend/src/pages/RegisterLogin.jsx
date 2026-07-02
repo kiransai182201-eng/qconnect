@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { ArrowRight, Store, User, Mail, MapPin, Lock, Eye, EyeOff, Upload, ChevronDown } from 'lucide-react';
-import { supabase, isMockMode } from '../lib/supabase';
+import { supabase } from '../lib/supabase';
 import '../index.css';
 import { useLanguage } from '../contexts/LanguageContext';
 
@@ -392,17 +392,6 @@ const RegisterLogin = () => {
             </button>
           </div>
         </div>
-        {/* Database Mode Banner */}
-        <div style={{
-          position: 'fixed', bottom: '16px', right: '16px',
-          padding: '8px 16px', borderRadius: '30px', fontSize: '0.75rem', fontWeight: '600',
-          zIndex: 1000, boxShadow: '0 4px 12px rgba(0,0,0,0.15)',
-          background: isMockMode ? 'rgba(239, 68, 68, 0.9)' : 'rgba(16, 185, 129, 0.9)',
-          border: isMockMode ? '1px solid rgba(239, 68, 68, 0.2)' : '1px solid rgba(16, 185, 129, 0.2)',
-          color: 'white', backdropFilter: 'blur(10px)'
-        }}>
-          <span>Database Mode: {isMockMode ? '⚠️ Mock Mode' : '🟢 Real Supabase'}</span>
-        </div>
       </main>
     );
   }
@@ -739,17 +728,6 @@ const RegisterLogin = () => {
             >Login</button>
           </p>
         </div>
-      </div>
-      {/* Database Mode Banner */}
-      <div style={{
-        position: 'fixed', bottom: '16px', right: '16px',
-        padding: '8px 16px', borderRadius: '30px', fontSize: '0.75rem', fontWeight: '600',
-        zIndex: 1000, boxShadow: '0 4px 12px rgba(0,0,0,0.15)',
-        background: isMockMode ? 'rgba(239, 68, 68, 0.9)' : 'rgba(16, 185, 129, 0.9)',
-        border: isMockMode ? '1px solid rgba(239, 68, 68, 0.2)' : '1px solid rgba(16, 185, 129, 0.2)',
-        color: 'white', backdropFilter: 'blur(10px)'
-      }}>
-        <span>Database Mode: {isMockMode ? '⚠️ Mock Mode' : '🟢 Real Supabase'}</span>
       </div>
     </main>
   );

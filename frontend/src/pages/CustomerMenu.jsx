@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { useParams, useSearchParams } from 'react-router-dom';
-import { supabase, isMockMode } from '../lib/supabase';
+import { supabase } from '../lib/supabase';
 import { useLanguage } from '../contexts/LanguageContext';
 import { Bell, MessageSquare, X, CheckCircle, Star, AlertTriangle } from 'lucide-react';
 import '../customer-menu.css';
@@ -176,7 +176,7 @@ const CustomerMenu = () => {
         }
       } else {
         // 3. Look up by owner_unique_id (slug) case-insensitively
-        const { data: shopData } = await supabase.from('shops').select('*').ilike('owner_unique_id', shopId).single();
+        const { data: shopData } = await supabase.from('shops').select('*').eq('owner_unique_id', shopId).single();
         if (shopData) {
           currentShop = shopData;
           const urlTable = searchParams.get('table');
@@ -369,20 +369,17 @@ const CustomerMenu = () => {
 
   const placeOrder = async (paymentMethod = 'Pay After Meal', customTableNumber = '') => {
     if (Object.keys(cart).length === 0) {
-      alert("Your cart is empty.");
-      return;
+      throw new Error("Your cart is empty. Please add items first.");
     }
     
     const lastOrder = localStorage.getItem('last_order_placed');
-    if (lastOrder && getNow() - parseInt(lastOrder, 10) < 15000) {
-      alert("Please wait a few seconds before placing another order.");
-      return;
+    if (lastOrder && getNow() - parseInt(lastOrder, 10) < 5000) {
+      throw new Error("Please wait a few seconds before placing another order.");
     }
 
     let finalTableNumber = String(customTableNumber || tableNumber || '').trim();
     if (finalTableNumber === 'Unknown' || !finalTableNumber) {
-      alert("Please enter your table number to place the order.");
-      return;
+      throw new Error("Please enter your table number to place the order.");
     }
 
     setIsPlacingOrder(true);
@@ -438,9 +435,7 @@ const CustomerMenu = () => {
       });
 
       if (cartItemsArr.length === 0) {
-        alert("No valid items found in cart. Please go back and add items.");
-        setIsPlacingOrder(false);
-        return;
+        throw new Error("No valid items found in cart. Please go back and add items.");
       }
 
       let finalNotes = orderNotes;
@@ -476,16 +471,12 @@ const CustomerMenu = () => {
       }
 
       if (orderError) {
-        alert(`Order failed: ${orderError.message || 'Unknown error'}. Please try again.`);
         console.error('Order RPC error:', orderError);
-        setIsPlacingOrder(false);
-        return;
+        throw new Error(`Order failed: ${orderError.message || 'Unknown error'}. Please try again.`);
       }
 
       if (!orderData) {
-        alert("Order returned empty response. Please try again.");
-        setIsPlacingOrder(false);
-        return;
+        throw new Error("Order returned empty response. Please try again.");
       }
 
       // Handle unavailable items response from backend
@@ -496,8 +487,7 @@ const CustomerMenu = () => {
           .select('*, categories!inner(shop_id)')
           .eq('categories.shop_id', shop.id);
         if (freshItems) setItems(freshItems);
-        setIsPlacingOrder(false);
-        return;
+        throw new Error('Some items are no longer available. Please review your cart.');
       }
 
       localStorage.setItem('last_order_placed', getNow().toString());
@@ -517,7 +507,8 @@ const CustomerMenu = () => {
       setIsCheckoutOpen(false);
     } catch (err) {
       console.error('Unexpected error placing order:', err);
-      alert(`Something went wrong: ${err.message || err}. Please try again.`);
+      // Re-throw so CheckoutView can catch and display the error inline
+      throw err;
     } finally {
       setIsPlacingOrder(false);
     }
@@ -693,12 +684,8 @@ const CustomerMenu = () => {
         isCartOpen={isCartOpen}
         setIsCartOpen={setIsCartOpen}
         onProceedToCheckout={() => {
-          if (isMockMode) {
-            placeOrder('Pay After Meal', tableNumber);
-          } else {
-            setIsCartOpen(false);
-            setIsCheckoutOpen(true);
-          }
+          setIsCartOpen(false);
+          setIsCheckoutOpen(true);
         }}
         orderNotes={orderNotes}
         setOrderNotes={setOrderNotes}
@@ -928,26 +915,7 @@ const CustomerMenu = () => {
           </div>
         </div>
       )}
-      {/* Database Mode Badge */}
-      <div style={{
-        position: 'fixed',
-        bottom: '16px',
-        right: '16px',
-        padding: '6px 12px',
-        borderRadius: '20px',
-        fontSize: '0.75rem',
-        fontWeight: 'bold',
-        zIndex: 9999,
-        background: isMockMode ? 'rgba(239, 68, 68, 0.95)' : 'rgba(16, 185, 129, 0.95)',
-        color: 'white',
-        boxShadow: '0 2px 8px rgba(0,0,0,0.2)',
-        pointerEvents: 'none',
-        display: 'flex',
-        alignItems: 'center',
-        gap: '4px'
-      }}>
-        <span>{isMockMode ? '⚠️ Mock Mode' : '🟢 Real DB'}</span>
-      </div>
+
     </div>
   );
 };

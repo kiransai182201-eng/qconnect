@@ -15,7 +15,11 @@ const CheckoutView = ({
   isDarkMode 
 }) => {
   const [selectedMethod, setSelectedMethod] = useState('Pay After Meal');
-  const [manualTableNumber, setManualTableNumber] = useState(tableNumber != null ? String(tableNumber) : '');
+  // Don't pre-fill 'Unknown' - show empty so customer knows to enter a real table number
+  const initialTable = (tableNumber && tableNumber !== 'Unknown') ? String(tableNumber) : '';
+  const [manualTableNumber, setManualTableNumber] = useState(initialTable);
+  const [tableError, setTableError] = useState('');
+  const [orderError, setOrderError] = useState('');
 
   const paymentMethods = [
     //     {
@@ -38,14 +42,27 @@ const CheckoutView = ({
     }
   ];
 
-  const handlePlaceOrder = () => {
+  const handlePlaceOrder = async () => {
     const trimmedTable = String(manualTableNumber ?? '').trim();
-    // Save table number back to parent if updated
-    if (trimmedTable) {
-      setTableNumber(trimmedTable);
+    setTableError('');
+    setOrderError('');
+
+    // Validate table number before calling placeOrder
+    if (!trimmedTable || trimmedTable === 'Unknown') {
+      setTableError('Please enter your table number to place the order.');
+      // Scroll to top so user sees the error on the table input
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+      return;
     }
-    // Call placeOrder passing the selected payment method
-    placeOrder(selectedMethod, trimmedTable);
+
+    // Save table number back to parent
+    setTableNumber(trimmedTable);
+
+    try {
+      await placeOrder(selectedMethod, trimmedTable);
+    } catch (err) {
+      setOrderError(err?.message || 'Something went wrong. Please try again.');
+    }
   };
 
   const grandTotal = getCartTotal();
@@ -97,28 +114,47 @@ const CheckoutView = ({
 
       <div style={{ padding: '1rem', display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
         
+        {/* Order Error Banner */}
+        {orderError && (
+          <div style={{
+            backgroundColor: 'rgba(239, 68, 68, 0.12)',
+            border: '1px solid rgba(239, 68, 68, 0.4)',
+            borderRadius: '12px',
+            padding: '0.85rem 1rem',
+            color: '#f87171',
+            fontSize: '0.85rem',
+            fontWeight: '600',
+            textAlign: 'center'
+          }}>
+            ⚠️ {orderError}
+          </div>
+        )}
+
         {/* Section: Confirm Table Number */}
         <section style={{
           backgroundColor: '#1c1512',
           borderRadius: '16px',
-          border: '1px solid rgba(255, 255, 255, 0.05)',
+          border: tableError ? '1px solid rgba(239, 68, 68, 0.6)' : '1px solid rgba(255, 255, 255, 0.05)',
           padding: '1rem'
         }}>
-          <h2 style={{ margin: '0 0 0.5rem 0', fontSize: '0.95rem', fontWeight: '800', textTransform: 'uppercase', color: 'var(--color-accent)', letterSpacing: '0.05em' }}>
-            Confirm Table Number
+          <h2 style={{ margin: '0 0 0.5rem 0', fontSize: '0.95rem', fontWeight: '800', textTransform: 'uppercase', color: tableError ? '#f87171' : 'var(--color-accent)', letterSpacing: '0.05em' }}>
+            {tableError ? '⚠️ Table Number Required' : 'Confirm Table Number'}
           </h2>
-          <p style={{ margin: '0 0 0.85rem 0', fontSize: '0.82rem', color: '#a3a3a3' }}>
-            Please confirm your active table number to receive your items.
+          <p style={{ margin: '0 0 0.85rem 0', fontSize: '0.82rem', color: tableError ? '#f87171' : '#a3a3a3' }}>
+            {tableError || 'Please confirm your active table number to receive your items.'}
           </p>
           <input 
             type="text"
             value={manualTableNumber}
-            onChange={(e) => setManualTableNumber(e.target.value)}
+            onChange={(e) => {
+              setManualTableNumber(e.target.value);
+              if (tableError) setTableError('');
+            }}
             placeholder="e.g. 5, T-07, or Takeaway"
             style={{
               width: '100%',
               backgroundColor: '#100c0a',
-              border: '1px solid rgba(255, 255, 255, 0.08)',
+              border: tableError ? '1.5px solid rgba(239, 68, 68, 0.6)' : '1px solid rgba(255, 255, 255, 0.08)',
               borderRadius: '12px',
               padding: '0.85rem 1rem',
               color: '#ffffff',
@@ -128,6 +164,7 @@ const CheckoutView = ({
               outline: 'none'
             }}
             aria-label="Confirm Table number"
+            autoFocus={!initialTable}
           />
         </section>
 
@@ -316,10 +353,11 @@ const CheckoutView = ({
         </div>
 
         <button
+          id="checkout-place-order-btn"
           onClick={handlePlaceOrder}
           disabled={isPlacingOrder || getCartItemCount() === 0}
           style={{
-            backgroundColor: 'var(--color-accent)',
+            backgroundColor: isPlacingOrder ? '#6b4500' : 'var(--color-accent)',
             color: '#ffffff',
             border: 'none',
             borderRadius: '16px',
@@ -327,16 +365,17 @@ const CheckoutView = ({
             fontSize: '0.98rem',
             fontWeight: '800',
             cursor: isPlacingOrder ? 'not-allowed' : 'pointer',
-            boxShadow: '0 8px 24px rgba(255, 109, 0, 0.3)',
+            boxShadow: isPlacingOrder ? 'none' : '0 8px 24px rgba(255, 109, 0, 0.3)',
             display: 'flex',
             alignItems: 'center',
             gap: '8px',
-            transition: 'all 0.2s'
+            transition: 'all 0.2s',
+            opacity: (isPlacingOrder || getCartItemCount() === 0) ? 0.6 : 1
           }}
         >
           {isPlacingOrder ? (
             <>
-              <div className="spinner" style={{ width: '18px', height: '18px', border: '2.5px solid rgba(255,255,255,0.3)', borderTop: '2.5px solid white' }}></div>
+              <div className="spinner" style={{ width: '18px', height: '18px', border: '2.5px solid rgba(255,255,255,0.3)', borderTop: '2.5px solid white', borderRadius: '50%', animation: 'spin 0.8s linear infinite' }}></div>
               Placing Order...
             </>
           ) : (

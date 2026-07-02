@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useOutletContext } from 'react-router-dom';
-import { supabase, isMockMode } from '../lib/supabase';
+import { supabase } from '../lib/supabase';
 import {
   Store, Users, Clock, IndianRupee, QrCode, ShoppingCart, Zap,
   CheckCircle, XCircle, ChevronRight, RefreshCw
@@ -414,21 +414,7 @@ const AdminDashboard = () => {
 
   return (
     <div className="admin-dashboard-page">
-      <div style={{
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'space-between',
-        padding: '12px 20px',
-        borderRadius: '12px',
-        marginBottom: '20px',
-        fontSize: '0.85rem',
-        fontWeight: '600',
-        background: isMockMode ? 'rgba(239, 68, 68, 0.1)' : 'rgba(16, 185, 129, 0.1)',
-        border: isMockMode ? '1px solid rgba(239, 68, 68, 0.2)' : '1px solid rgba(16, 185, 129, 0.2)',
-        color: isMockMode ? '#f87171' : '#34d399'
-      }}>
-        <span>Database Mode: {isMockMode ? '⚠️ Mock Mode (Local Storage)' : '🟢 Real Supabase Connected'}</span>
-      </div>
+
       {dbError && (
         <div style={{
           padding: '16px',
