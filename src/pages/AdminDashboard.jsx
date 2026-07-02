@@ -3,7 +3,7 @@ import { useOutletContext } from 'react-router-dom';
 import { supabase, isMockMode } from '../lib/supabase';
 import {
   Store, Users, Clock, IndianRupee, QrCode, ShoppingCart, Zap,
-  CheckCircle, XCircle, ChevronRight, TrendingUp, RefreshCw
+  CheckCircle, XCircle, ChevronRight, RefreshCw
 } from 'lucide-react';
 
 // Helper: read mock DB
@@ -85,15 +85,48 @@ const AdminDashboard = () => {
     }
   }, []);
 
-  // Auto-refresh every 3 seconds for live status
+  // Auto-refresh and subscribe to realtime updates
   useEffect(() => {
     const timer = setTimeout(() => {
       refreshDB();
     }, 0);
+
+    // Setup realtime subscription for real DB mode
+    let channel = null;
+    if (!isMockMode) {
+      channel = supabase.channel('realtime-admin-dashboard-changes')
+        .on('postgres_changes', {
+          event: '*',
+          schema: 'public',
+          table: 'registrations'
+        }, () => {
+          refreshDB();
+        })
+        .on('postgres_changes', {
+          event: '*',
+          schema: 'public',
+          table: 'shops'
+        }, () => {
+          refreshDB();
+        })
+        .on('postgres_changes', {
+          event: '*',
+          schema: 'public',
+          table: 'orders'
+        }, () => {
+          refreshDB();
+        })
+        .subscribe();
+    }
+
     const interval = setInterval(refreshDB, 3000);
+
     return () => {
       clearTimeout(timer);
       clearInterval(interval);
+      if (channel) {
+        supabase.removeChannel(channel);
+      }
     };
   }, [refreshDB]);
 
@@ -343,7 +376,7 @@ const AdminDashboard = () => {
   const startOfToday = new Date();
   startOfToday.setHours(0, 0, 0, 0);
   const ordersToday = (db.orders || [])
-    .filter(o => new Date(o.created_at || o.submitted_at) >= startOfToday)
+    .filter(o => new Date(o.created_at) >= startOfToday)
     .length;
 
   // Calculate total QR scans (views)
@@ -353,7 +386,7 @@ const AdminDashboard = () => {
   const currentMonth = new Date().getMonth();
   const monthCounts = Array(6).fill(0);
   db.shops.forEach(shop => {
-    const date = new Date(shop.created_at || shop.submitted_at);
+    const date = new Date(shop.created_at);
     const diff = currentMonth - date.getMonth() + (12 * (new Date().getFullYear() - date.getFullYear()));
     if (diff >= 0 && diff < 6) {
       monthCounts[5 - diff]++;

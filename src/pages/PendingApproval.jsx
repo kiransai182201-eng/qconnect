@@ -453,6 +453,17 @@ const PendingApproval = () => {
           </button>
         </div>
       </div>
+      {/* Database Mode Banner */}
+      <div style={{
+        position: 'fixed', bottom: '16px', right: '16px',
+        padding: '8px 16px', borderRadius: '30px', fontSize: '0.75rem', fontWeight: '600',
+        zIndex: 1000, boxShadow: '0 4px 12px rgba(0,0,0,0.15)',
+        background: isMockMode ? 'rgba(239, 68, 68, 0.9)' : 'rgba(16, 185, 129, 0.9)',
+        border: isMockMode ? '1px solid rgba(239, 68, 68, 0.2)' : '1px solid rgba(16, 185, 129, 0.2)',
+        color: 'white', backdropFilter: 'blur(10px)'
+      }}>
+        <span>Database Mode: {isMockMode ? '⚠️ Mock Mode' : '🟢 Real Supabase'}</span>
+      </div>
     </main>
   );
 };

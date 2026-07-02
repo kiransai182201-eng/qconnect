@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
-import { ArrowRight, Store, User, Phone, Mail, MapPin, Lock, Eye, EyeOff, Upload, ChevronDown } from 'lucide-react';
+import { ArrowRight, Store, User, Mail, MapPin, Lock, Eye, EyeOff, Upload, ChevronDown } from 'lucide-react';
 import { supabase, isMockMode } from '../lib/supabase';
 import '../index.css';
 import { useLanguage } from '../contexts/LanguageContext';
@@ -33,7 +33,6 @@ const RegisterLogin = () => {
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [agreedTerms, setAgreedTerms] = useState(false);
   const navigate = useNavigate();
-  const { t } = useLanguage();
 
   // Login fields
   const [loginEmail, setLoginEmail] = useState('');
@@ -246,7 +245,6 @@ const RegisterLogin = () => {
           {
             shop_name: form.shopName,
             owner_name: form.ownerName,
-            phone: form.mobile,
             mobile: form.mobile,
             email: form.email.toLowerCase(),
             address: form.address,
@@ -254,15 +252,33 @@ const RegisterLogin = () => {
             tables: parseInt(form.tables) || 5,
             logo_url: logoPreview || null,
             status: 'PENDING',
-            submitted_at: new Date().toISOString(),
             user_id: data?.user?.id || null
           }
         ]);
         if (insertError) throw insertError;
       }
 
-      // 3. Navigate to pending approval page
-      navigate('/pending-approval');
+      // 3. Handle email confirmation requirement
+      if (data?.session) {
+        navigate('/pending-approval');
+      } else {
+        setMessage('Registration submitted! Please check your email to confirm your account and log in.');
+        setError('');
+        // Clear form
+        setForm({
+          shopName: '',
+          ownerName: '',
+          mobile: '',
+          email: '',
+          address: '',
+          password: '',
+          confirmPassword: '',
+          category: '',
+          tables: 5,
+          logo: null
+        });
+        setLogoPreview(null);
+      }
 
     } catch (err) {
       setError(err.message);
@@ -376,6 +392,17 @@ const RegisterLogin = () => {
             </button>
           </div>
         </div>
+        {/* Database Mode Banner */}
+        <div style={{
+          position: 'fixed', bottom: '16px', right: '16px',
+          padding: '8px 16px', borderRadius: '30px', fontSize: '0.75rem', fontWeight: '600',
+          zIndex: 1000, boxShadow: '0 4px 12px rgba(0,0,0,0.15)',
+          background: isMockMode ? 'rgba(239, 68, 68, 0.9)' : 'rgba(16, 185, 129, 0.9)',
+          border: isMockMode ? '1px solid rgba(239, 68, 68, 0.2)' : '1px solid rgba(16, 185, 129, 0.2)',
+          color: 'white', backdropFilter: 'blur(10px)'
+        }}>
+          <span>Database Mode: {isMockMode ? '⚠️ Mock Mode' : '🟢 Real Supabase'}</span>
+        </div>
       </main>
     );
   }
@@ -449,6 +476,17 @@ const RegisterLogin = () => {
             display: 'flex', alignItems: 'center', gap: '8px'
           }}>
             <span style={{ fontSize: '1.1rem' }}>⚠</span> {error}
+          </div>
+        )}
+
+        {message && (
+          <div style={{
+            background: 'rgba(34, 197, 94, 0.08)', color: '#22c55e',
+            padding: '14px 18px', borderRadius: '12px', marginBottom: '20px',
+            fontSize: '0.85rem', border: '1px solid rgba(34,197,94,0.15)',
+            display: 'flex', alignItems: 'center', gap: '8px'
+          }}>
+            <span style={{ fontSize: '1.1rem' }}>✓</span> {message}
           </div>
         )}
 
@@ -701,6 +739,17 @@ const RegisterLogin = () => {
             >Login</button>
           </p>
         </div>
+      </div>
+      {/* Database Mode Banner */}
+      <div style={{
+        position: 'fixed', bottom: '16px', right: '16px',
+        padding: '8px 16px', borderRadius: '30px', fontSize: '0.75rem', fontWeight: '600',
+        zIndex: 1000, boxShadow: '0 4px 12px rgba(0,0,0,0.15)',
+        background: isMockMode ? 'rgba(239, 68, 68, 0.9)' : 'rgba(16, 185, 129, 0.9)',
+        border: isMockMode ? '1px solid rgba(239, 68, 68, 0.2)' : '1px solid rgba(16, 185, 129, 0.2)',
+        color: 'white', backdropFilter: 'blur(10px)'
+      }}>
+        <span>Database Mode: {isMockMode ? '⚠️ Mock Mode' : '🟢 Real Supabase'}</span>
       </div>
     </main>
   );
