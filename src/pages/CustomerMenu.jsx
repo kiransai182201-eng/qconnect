@@ -693,8 +693,12 @@ const CustomerMenu = () => {
         isCartOpen={isCartOpen}
         setIsCartOpen={setIsCartOpen}
         onProceedToCheckout={() => {
-          setIsCartOpen(false);
-          setIsCheckoutOpen(true);
+          if (isMockMode) {
+            placeOrder('Pay After Meal', tableNumber);
+          } else {
+            setIsCartOpen(false);
+            setIsCheckoutOpen(true);
+          }
         }}
         orderNotes={orderNotes}
         setOrderNotes={setOrderNotes}

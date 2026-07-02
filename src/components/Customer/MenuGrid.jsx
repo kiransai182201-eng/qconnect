@@ -103,6 +103,7 @@ const MenuGrid = ({
           return (
             <button 
               key={filter.id}
+              id={`category-${filter.id}-btn`}
               className={`customer-pill ${isActive ? 'active' : ''}`} 
               onClick={() => setDietFilter(filter.id)}
               style={{
@@ -129,6 +130,7 @@ const MenuGrid = ({
           return (
             <button 
               key={cat.id}
+              id={`category-${cat.id}-btn`}
               className={`customer-pill ${isActive ? 'active' : ''}`}
               onClick={() => setActiveCategoryId(isActive ? 'all' : cat.id)}
               style={{
@@ -218,7 +220,7 @@ const MenuGrid = ({
                       {/* Item Details */}
                       <div className="customer-vertical-content">
                         <span className="customer-vertical-category">{cat.name}</span>
-                        <h3 className="customer-vertical-title">{item.name}</h3>
+                        <h3 className="customer-vertical-title customer-item-title">{item.name}</h3>
                         
                         {/* Rating stars */}
                         <div className="customer-vertical-stars">
@@ -231,16 +233,15 @@ const MenuGrid = ({
                         {/* Actions */}
                         {qty === 0 ? (
                           <button 
+                            id={`add-to-cart-${item.id}`}
                             className="customer-vertical-btn"
                             onClick={(e) => {
                               e.stopPropagation();
-                              if (item.is_available && onItemClick) {
-                                onItemClick(item);
-                              }
+                              addToCart(item, 1);
                             }}
                             disabled={!item.is_available}
                           >
-                            View Details
+                            Add to Cart
                           </button>
                         ) : (
                           <div className="customer-vertical-counter" onClick={(e) => e.stopPropagation()}>
