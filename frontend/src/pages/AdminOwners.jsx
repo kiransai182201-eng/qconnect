@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useOutletContext } from 'react-router-dom';
-import { supabase } from '../lib/supabase';
+import { supabase, isMockMode } from '../lib/supabase';
 import {
   Store, Search, Filter, Plus, Eye, Trash2, Pause, Play,
   CheckCircle, XCircle, ChevronDown, MapPin, Phone

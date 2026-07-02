@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { ArrowRight, Store, User, Mail, MapPin, Lock, Eye, EyeOff, Upload, ChevronDown } from 'lucide-react';
-import { supabase } from '../lib/supabase';
+import { supabase, isMockMode } from '../lib/supabase';
 import '../index.css';
 import { useLanguage } from '../contexts/LanguageContext';
 
