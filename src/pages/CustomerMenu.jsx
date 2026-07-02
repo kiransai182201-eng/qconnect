@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { useParams, useSearchParams } from 'react-router-dom';
-import { supabase } from '../lib/supabase';
+import { supabase, isMockMode } from '../lib/supabase';
 import { useLanguage } from '../contexts/LanguageContext';
 import { Bell, MessageSquare, X, CheckCircle, Star, AlertTriangle } from 'lucide-react';
 import '../customer-menu.css';
@@ -924,6 +924,26 @@ const CustomerMenu = () => {
           </div>
         </div>
       )}
+      {/* Database Mode Badge */}
+      <div style={{
+        position: 'fixed',
+        bottom: '16px',
+        right: '16px',
+        padding: '6px 12px',
+        borderRadius: '20px',
+        fontSize: '0.75rem',
+        fontWeight: 'bold',
+        zIndex: 9999,
+        background: isMockMode ? 'rgba(239, 68, 68, 0.95)' : 'rgba(16, 185, 129, 0.95)',
+        color: 'white',
+        boxShadow: '0 2px 8px rgba(0,0,0,0.2)',
+        pointerEvents: 'none',
+        display: 'flex',
+        alignItems: 'center',
+        gap: '4px'
+      }}>
+        <span>{isMockMode ? '⚠️ Mock Mode' : '🟢 Real DB'}</span>
+      </div>
     </div>
   );
 };
