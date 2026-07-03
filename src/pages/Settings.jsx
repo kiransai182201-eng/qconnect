@@ -263,7 +263,7 @@ const Settings = () => {
 
   const handleLogout = async () => {
     await supabase.auth.signOut();
-    navigate('/register');
+    navigate('/');
   };
 
   // Delete Account
@@ -281,7 +281,7 @@ const Settings = () => {
 
       // Sign out locally
       await supabase.auth.signOut();
-      navigate('/register');
+      navigate('/');
     } catch (err) {
       console.error('Error deleting account:', err);
       alert('Failed to delete account: ' + err.message);
