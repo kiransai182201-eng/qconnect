@@ -32,7 +32,7 @@ const ShopDetails = () => {
       const { data: { session } } = await supabase.auth.getSession();
       const user = session?.user;
       if (!user) {
-        navigate('/register');
+        navigate('/login');
         return;
       }
       
@@ -149,7 +149,7 @@ const ShopDetails = () => {
       ]);
 
       if (error) throw error;
-      navigate('/qr-code');
+      navigate('/dashboard');
     } catch (err) {
       setError(err.message);
     } finally {
