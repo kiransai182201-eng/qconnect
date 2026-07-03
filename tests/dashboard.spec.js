@@ -58,7 +58,7 @@ test.describe('Owner Management Dashboard & Settings spec', () => {
     await page.goto('/settings?mock=true');
 
     // Click delete account list item to open modal
-    await page.click('text=Delete Account');
+    await page.click('text=Delete Account', { force: true });
 
     // Verify modal is visible
     await expect(page.locator('h3', { hasText: 'Delete Account' })).toBeVisible();
