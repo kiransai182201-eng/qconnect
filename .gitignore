@@ -33,3 +33,7 @@ dist-ssr
 
 
 testsprite_tests\tmp\config.json
+
+# Playwright
+playwright-report/
+test-results/
