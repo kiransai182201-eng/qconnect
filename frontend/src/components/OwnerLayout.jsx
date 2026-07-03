@@ -220,7 +220,7 @@ const OwnerLayout = ({ activeTab }) => {
             })
             .subscribe();
         } else {
-          navigate('/');
+          navigate('/shop-setup');
         }
       } catch (err) {
         console.error('Error fetching layout data:', err);

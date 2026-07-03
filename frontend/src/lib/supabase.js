@@ -778,11 +778,6 @@ if (typeof window !== 'undefined') {
     localStorage.setItem('supabase_mock_mode', 'true');
   } else if (window.location.search.includes('mock=false')) {
     localStorage.setItem('supabase_mock_mode', 'false');
-  } else if (supabaseUrl && !supabaseUrl.includes('placeholder-never-use')) {
-    // If mock mode is explicitly set to false, keep it, otherwise clean it up
-    if (localStorage.getItem('supabase_mock_mode') !== 'false') {
-      localStorage.removeItem('supabase_mock_mode');
-    }
   }
 }
 
