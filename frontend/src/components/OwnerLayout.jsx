@@ -113,7 +113,7 @@ const OwnerLayout = ({ activeTab }) => {
 
         if (!isMounted) return;
         if (!authUser) {
-          navigate('/');
+          navigate('/login');
           return;
         }
         setUser(authUser);

@@ -8,6 +8,7 @@ import CustomCursor from './components/CustomCursor';
 
 // Code-splitting routes for faster initial page load
 const LandingPage = React.lazy(() => import('./pages/LandingPage'));
+const Login = React.lazy(() => import('./pages/Login'));
 const QRCodeGeneration = React.lazy(() => import('./pages/QRCodeGeneration'));
 const MenuBuilder = React.lazy(() => import('./pages/MenuBuilder'));
 const Dashboard = React.lazy(() => import('./pages/Dashboard'));
@@ -81,6 +82,7 @@ function App() {
           <Suspense fallback={<Loader />}>
             <Routes>
               <Route path="/" element={<LandingPage />} />
+              <Route path="/login" element={<Login />} />
               <Route path="/menu/:shopId" element={<CustomerMenu />} />
               <Route path="/receipt/:orderId" element={<ReceiptView />} />
               

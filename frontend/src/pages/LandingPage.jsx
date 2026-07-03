@@ -205,7 +205,11 @@ const LandingPage = () => {
   };
 
   const handleCtaClick = () => {
-    navigate('/dashboard');
+    if (isLoggedIn) {
+      navigate('/dashboard');
+    } else {
+      navigate('/login');
+    }
   };
 
   // 8. Render Dynamic Feature Previews
@@ -469,7 +473,7 @@ const LandingPage = () => {
           <a href="#testimonials">Reviews</a>
         </div>
         <button onClick={handleCtaClick} className="nav-cta">
-          Go to Dashboard
+          {isLoggedIn ? 'Go to Dashboard' : 'Get Started Free'}
         </button>
       </nav>
 
@@ -492,7 +496,7 @@ const LandingPage = () => {
 
         <div className="hero-actions">
           <button onClick={handleCtaClick} className="btn-primary">
-            Go to Dashboard →
+            {isLoggedIn ? 'Go to Dashboard →' : 'Start Free Trial →'}
           </button>
           <a href="#how" className="btn-ghost">See How It Works</a>
         </div>
