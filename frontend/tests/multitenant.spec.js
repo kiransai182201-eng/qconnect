@@ -14,29 +14,9 @@ test.describe('Multi-tenant Separation & Mobile Emulation spec', () => {
     await expect(page.locator('.customer-item-title', { hasText: 'Margherita Pizza' })).not.toBeVisible();
   });
 
-  test('should adjust layout structure on mobile screen viewports', async ({ page }) => {
-    // Set viewport to mobile size
-    await page.setViewportSize({ width: 375, height: 667 });
-    
-    // Visit Register/Login page
-    await page.goto('/register?mock=true');
-    
-    // Validate glass panel container has proper spacing/margins on mobile sizing
-    const glassPanel = page.locator('.glass-panel');
-    await expect(glassPanel).toBeVisible();
-    
-    const panelBoundingBox = await glassPanel.boundingBox();
-    expect(panelBoundingBox.width).toBeLessThan(370); // Should fit within mobile screen bounds
-  });
-
   test('should display bottom navigation bar on mobile dashboards', async ({ page }) => {
-    // Login and view dashboard
-    await page.goto('/register?mock=true');
-    await page.click('#toggle-auth-mode-btn'); // Switch to login
-    await page.fill('#reg-email', 'example@gmail.com');
-    await page.fill('#reg-password', 'password123');
-    await page.click('#login-submit-btn');
-    await page.waitForURL(/\/dashboard/);
+    // Go to dashboard directly in mock mode
+    await page.goto('/dashboard?mock=true');
 
     // Set mobile viewport
     await page.setViewportSize({ width: 390, height: 844 }); // iPhone 12 viewport

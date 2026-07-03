@@ -2,13 +2,8 @@ import { test, expect } from '@playwright/test';
 
 test.describe('Owner Management Dashboard & Settings spec', () => {
   test.beforeEach(async ({ page }) => {
-    // Authenticate and load dashboard in mock mode
-    await page.goto('/register?mock=true');
-    await page.click('#toggle-auth-mode-btn'); // Switch to login
-    await page.fill('#reg-email', 'example@gmail.com');
-    await page.fill('#reg-password', 'password123');
-    await page.click('#login-submit-btn');
-    await page.waitForURL(/\/dashboard/);
+    // Navigate directly to dashboard in mock mode (which will auto-login)
+    await page.goto('/dashboard?mock=true');
   });
 
   test('should load correct dashboard statistics and active metrics', async ({ page }) => {
@@ -75,7 +70,7 @@ test.describe('Owner Management Dashboard & Settings spec', () => {
     // Click permanent delete button
     await page.click('button:has-text("Delete Permanently")');
 
-    // Verify redirect to register page
-    await page.waitForURL(/\/register/);
+    // Verify redirect to landing page
+    await page.waitForURL(/\/$/);
   });
 });

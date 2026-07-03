@@ -204,23 +204,8 @@ const LandingPage = () => {
     }
   };
 
-  const handleCtaClick = async () => {
-    if (isLoggedIn) {
-      try {
-        const { data: { session } } = await supabase.auth.getSession();
-        const email = session?.user?.email?.toLowerCase();
-        const ADMIN_EMAILS = ['sunnykiran715@gmail.com', 'revanthrevanth4248@gmail.com'];
-        if (email && ADMIN_EMAILS.includes(email)) {
-          navigate('/admin/dashboard');
-        } else {
-          navigate('/dashboard');
-        }
-      } catch (err) {
-        navigate('/dashboard');
-      }
-    } else {
-      navigate('/register');
-    }
+  const handleCtaClick = () => {
+    navigate('/dashboard');
   };
 
   // 8. Render Dynamic Feature Previews
@@ -484,7 +469,7 @@ const LandingPage = () => {
           <a href="#testimonials">Reviews</a>
         </div>
         <button onClick={handleCtaClick} className="nav-cta">
-          {isLoggedIn ? 'Go to Dashboard' : 'Get Started Free'}
+          Go to Dashboard
         </button>
       </nav>
 
@@ -507,7 +492,7 @@ const LandingPage = () => {
 
         <div className="hero-actions">
           <button onClick={handleCtaClick} className="btn-primary">
-            {isLoggedIn ? 'Go to Dashboard →' : 'Start Free Trial →'}
+            Go to Dashboard →
           </button>
           <a href="#how" className="btn-ghost">See How It Works</a>
         </div>

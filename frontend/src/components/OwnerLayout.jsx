@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useNavigate, useLocation, Outlet } from 'react-router-dom';
-import { supabase } from '../lib/supabase';
+import { supabase, isMockMode } from '../lib/supabase';
 import { 
   LayoutGrid, 
   Utensils, 
@@ -78,15 +78,9 @@ const OwnerLayout = ({ activeTab }) => {
     };
   }, [currentTab, shop?.name, t]);
 
-  // Whitelisted admin emails
-  const ADMIN_EMAILS = [
-    'sunnykiran715@gmail.com',
-    'revanthrevanth4248@gmail.com'
-  ];
-
   // Navigation Items for Desktop Sidebar
   const getSidebarItems = () => {
-    const items = [
+    return [
       { id: 'dashboard', label: t.dashboard, path: '/dashboard', icon: LayoutGrid },
       { id: 'menu', label: t.menu, path: '/menu-builder', icon: Utensils },
       { id: 'qr-code', label: t.qrCodes, path: '/qr-code', icon: QrCode },
@@ -95,11 +89,6 @@ const OwnerLayout = ({ activeTab }) => {
       { id: 'history', label: t.history, path: '/history', icon: History },
       { id: 'settings', label: t.settings, path: '/settings', icon: Settings }
     ];
-
-    if (user && ADMIN_EMAILS.includes(user.email?.toLowerCase())) {
-      items.push({ id: 'admin', label: 'Admin Panel', path: '/admin/dashboard', icon: Shield });
-    }
-    return items;
   };
 
   const sidebarItems = getSidebarItems();
@@ -111,19 +100,23 @@ const OwnerLayout = ({ activeTab }) => {
     const fetchData = async () => {
       try {
         const { data: { session } } = await supabase.auth.getSession();
-        const authUser = session?.user;
+        let authUser = session?.user;
+
+        // Auto-login default user in mock mode if no session exists
+        if (!authUser && isMockMode) {
+          const { data: signInData } = await supabase.auth.signInWithPassword({
+            email: 'example@gmail.com',
+            password: 'password123'
+          });
+          authUser = signInData?.user;
+        }
+
         if (!isMounted) return;
         if (!authUser) {
-          navigate('/register');
+          navigate('/');
           return;
         }
         setUser(authUser);
-
-        // Check if user has a pending registration (not yet approved)
-        const db = JSON.parse(localStorage.getItem('supabase_mock_db') || '{}');
-        const pendingReg = (db.registrations || []).find(
-          r => r.email?.toLowerCase() === authUser.email?.toLowerCase() && r.status === 'PENDING'
-        );
 
         // Fetch shop details
         const { data: shops } = await supabase.from('shops').select('*').eq('user_id', authUser.id).limit(1);
@@ -227,12 +220,7 @@ const OwnerLayout = ({ activeTab }) => {
             })
             .subscribe();
         } else {
-          // If shop is not setup yet, check for pending registration
-          if (pendingReg) {
-            navigate('/pending-approval');
-          } else {
-            navigate('/shop-setup');
-          }
+          navigate('/');
         }
       } catch (err) {
         console.error('Error fetching layout data:', err);
