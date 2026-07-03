@@ -88,7 +88,7 @@ const QRCodeGeneration = () => {
           const tableNum = maxTableNumber + i;
           const tableToken = crypto.randomUUID();
           const tableCode = `${shop.owner_unique_id}_table_${tableNum}`;
-          const qrUrl = `${baseUrl}/menu/${tableToken}`;
+          const qrUrl = `${baseUrl}/menu/${shop.owner_unique_id || shop.id}?table=${tableNum}`;
           newTables.push({
             shop_id: shop.id,
             table_number: tableNum,
@@ -202,7 +202,7 @@ const QRCodeGeneration = () => {
       const tableToken = crypto.randomUUID();
       const tableCode = `${shop.owner_unique_id}_table_${nextTableNum}`;
       const baseUrl = window.location.origin;
-      const qrUrl = `${baseUrl}/menu/${tableToken}`;
+      const qrUrl = `${baseUrl}/menu/${shop.owner_unique_id || shop.id}?table=${nextTableNum}`;
 
       const { data: newTable, error: insertError } = await supabase
         .from('shop_tables')
