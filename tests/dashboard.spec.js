@@ -70,7 +70,7 @@ test.describe('Owner Management Dashboard & Settings spec', () => {
     // Click permanent delete button
     await page.click('button:has-text("Delete Permanently")');
 
-    // Verify redirect to landing page
-    await page.waitForURL(/\/$/);
+    // Verify redirect to login page
+    await page.waitForURL(/\/login/);
   });
 });
