@@ -40,10 +40,13 @@ const QRCodeGeneration = () => {
       return `${targetBase}/menu/${slug}?table=${table.table_number}`;
     }
 
-    if ((url.includes('localhost') || url.includes('127.0.0.1')) && !targetBase.includes('localhost')) {
+    if (url.includes('localhost') || url.includes('127.0.0.1')) {
       try {
         const parsed = new URL(url);
-        return `${targetBase}${parsed.pathname}${parsed.search}`;
+        const targetUrl = new URL(targetBase);
+        if (parsed.host !== targetUrl.host) {
+          return `${targetBase}${parsed.pathname}${parsed.search}`;
+        }
       } catch {
         return `${targetBase}/menu/${slug}?table=${table.table_number}`;
       }

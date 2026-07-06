@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Search, SlidersHorizontal, Heart, Star } from 'lucide-react';
+import { Search, SlidersHorizontal } from 'lucide-react';
 
 const isVegItem = (itemName) => {
   const lower = itemName.toLowerCase();
@@ -7,6 +7,13 @@ const isVegItem = (itemName) => {
     return false;
   }
   return true;
+};
+
+const getStablePrepTime = (id) => {
+  if (!id) return 10;
+  let sum = 0;
+  for (let i = 0; i < id.length; i++) sum += id.charCodeAt(i);
+  return (sum % 15) + 10; // between 10 and 24 mins
 };
 
 const MenuGrid = ({ 
@@ -24,13 +31,13 @@ const MenuGrid = ({
   getIcon,
   onItemClick
 }) => {
-  // Diet filter state: 'all', 'veg', 'non-veg', 'spicy'
+  // Diet filter state: 'all', 'veg', 'vegan', 'gluten-free', 'spicy'
   const [dietFilter, setDietFilter] = useState('all');
 
   const getItemQtyInCart = (itemId) => {
     return Object.keys(cart).reduce((total, key) => {
       if (key === itemId || key.startsWith(`${itemId}_`)) {
-        return total + cart[key];
+        return total + cart[key].quantity;
       }
       return total;
     }, 0);
@@ -55,8 +62,10 @@ const MenuGrid = ({
     let matchesDiet = true;
     if (dietFilter === 'veg') {
       matchesDiet = isVegItem(item.name);
-    } else if (dietFilter === 'non-veg') {
-      matchesDiet = !isVegItem(item.name);
+    } else if (dietFilter === 'vegan') {
+      matchesDiet = isVegItem(item.name) || item.name.toLowerCase().includes('vegan') || (item.description || '').toLowerCase().includes('vegan');
+    } else if (dietFilter === 'gluten-free') {
+      matchesDiet = item.name.toLowerCase().includes('gluten') || (item.description || '').toLowerCase().includes('gluten');
     } else if (dietFilter === 'spicy') {
       matchesDiet = isSpicyItem(item);
     }
@@ -71,60 +80,52 @@ const MenuGrid = ({
   }, {});
 
   const dietFilters = [
-    { id: 'all', label: 'All' },
-    { id: 'veg', label: 'Veg' },
-    { id: 'non-veg', label: 'Non-Veg' },
-    { id: 'spicy', label: 'Spicy' }
+    { id: 'veg', label: 'Vegetarian', color: '#10b981' },
+    { id: 'vegan', label: 'Vegan', color: '#34d399' },
+    { id: 'gluten-free', label: 'Gluten-Free', color: '#f59e0b' },
+    { id: 'spicy', label: 'Spicy', color: '#ef4444' }
   ];
 
   return (
     <>
       {/* Search Bar */}
       <div className="customer-search-container" style={{ margin: '0.5rem 0' }}>
-        <div className="customer-search-bar" style={{ backgroundColor: '#1d1714', border: '1px solid rgba(255,255,255,0.03)' }}>
+        <div className="customer-search-bar" style={{ backgroundColor: 'var(--bg-secondary)', border: '1px solid var(--card-border)' }}>
           <Search size={18} color="var(--text-secondary)" style={{ flexShrink: 0 }} />
           <input 
             id="menu-search-input"
             type="text" 
-            placeholder="Search truffle pasta, salmon, martini..." 
+            placeholder="Search coffee, croissants, dishes..." 
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             aria-label="Search menu items"
-            style={{ background: 'none', border: 'none', color: '#ffffff' }}
+            style={{ background: 'none', border: 'none', color: 'var(--text-primary)' }}
           />
           <SlidersHorizontal size={18} color="var(--text-secondary)" style={{ flexShrink: 0, cursor: 'pointer' }} />
         </div>
       </div>
 
-      {/* Horizontally Scrollable Diet / Category Filters */}
-      <nav className="customer-pill-container customer-no-scrollbar" aria-label="Dietary filters" style={{ display: 'flex', gap: '0.6rem', padding: '0.5rem 1rem' }}>
-        {dietFilters.map(filter => {
-          const isActive = dietFilter === filter.id;
-          return (
-            <button 
-              key={filter.id}
-              id={`category-${filter.id}-btn`}
-              className={`customer-pill ${isActive ? 'active' : ''}`} 
-              onClick={() => setDietFilter(filter.id)}
-              style={{
-                backgroundColor: isActive ? 'var(--color-accent)' : '#1c1512',
-                color: isActive ? '#ffffff' : 'var(--text-secondary)',
-                border: 'none',
-                padding: '8px 20px',
-                borderRadius: '20px',
-                fontSize: '0.85rem',
-                fontWeight: '600',
-                cursor: 'pointer',
-                transition: 'all 0.25s',
-                whiteSpace: 'nowrap'
-              }}
-            >
-              {filter.label}
-            </button>
-          );
-        })}
-        <div style={{ width: '1px', backgroundColor: 'rgba(255,255,255,0.08)', margin: '4px 2px' }}></div>
-        {/* Category quick filters */}
+      {/* Row 1: Horizontally Scrollable Categories */}
+      <nav className="customer-pill-container customer-no-scrollbar" aria-label="Categories" style={{ display: 'flex', gap: '0.6rem', padding: '0.4rem 1rem', marginBottom: '0.2rem' }}>
+        <button 
+          id="category-all-btn"
+          className={`customer-pill ${activeCategoryId === 'all' ? 'active' : ''}`}
+          onClick={() => setActiveCategoryId('all')}
+          style={{
+            backgroundColor: activeCategoryId === 'all' ? 'var(--color-accent)' : 'var(--bg-secondary)',
+            color: activeCategoryId === 'all' ? '#ffffff' : 'var(--text-primary)',
+            border: activeCategoryId === 'all' ? 'none' : '1px solid var(--card-border)',
+            padding: '8px 20px',
+            borderRadius: '20px',
+            fontSize: '0.85rem',
+            fontWeight: '600',
+            cursor: 'pointer',
+            transition: 'all 0.25s',
+            whiteSpace: 'nowrap'
+          }}
+        >
+          All Items
+        </button>
         {categories.map(cat => {
           const isActive = activeCategoryId === cat.id;
           return (
@@ -132,11 +133,11 @@ const MenuGrid = ({
               key={cat.id}
               id={`category-${cat.id}-btn`}
               className={`customer-pill ${isActive ? 'active' : ''}`}
-              onClick={() => setActiveCategoryId(isActive ? 'all' : cat.id)}
+              onClick={() => setActiveCategoryId(cat.id)}
               style={{
-                backgroundColor: isActive ? 'var(--color-accent)' : '#1c1512',
-                color: isActive ? '#ffffff' : 'var(--text-secondary)',
-                border: 'none',
+                backgroundColor: isActive ? 'var(--color-accent)' : 'var(--bg-secondary)',
+                color: isActive ? '#ffffff' : 'var(--text-primary)',
+                border: isActive ? 'none' : '1px solid var(--card-border)',
                 padding: '8px 20px',
                 borderRadius: '20px',
                 fontSize: '0.85rem',
@@ -147,6 +148,47 @@ const MenuGrid = ({
               }}
             >
               {cat.name}
+            </button>
+          );
+        })}
+      </nav>
+
+      {/* Row 2: Horizontally Scrollable Dietary Filters */}
+      <nav className="customer-pill-container customer-no-scrollbar" aria-label="Dietary filters" style={{ display: 'flex', gap: '0.6rem', padding: '0.4rem 1rem', marginBottom: '1.25rem' }}>
+        {dietFilters.map(filter => {
+          const isActive = dietFilter === filter.id;
+          return (
+            <button 
+              key={filter.id}
+              id={`diet-${filter.id}-btn`}
+              className={`customer-pill ${isActive ? 'active' : ''}`} 
+              onClick={() => setDietFilter(isActive ? 'all' : filter.id)}
+              style={{
+                backgroundColor: isActive ? 'var(--color-accent)' : 'var(--bg-secondary)',
+                color: isActive ? '#ffffff' : 'var(--text-primary)',
+                border: isActive ? 'none' : '1px solid var(--card-border)',
+                padding: '8px 20px',
+                borderRadius: '20px',
+                fontSize: '0.85rem',
+                fontWeight: '600',
+                cursor: 'pointer',
+                transition: 'all 0.25s',
+                whiteSpace: 'nowrap',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '6px'
+              }}
+            >
+              {filter.color && (
+                <span style={{
+                  width: '8px',
+                  height: '8px',
+                  borderRadius: '50%',
+                  backgroundColor: filter.color,
+                  display: 'inline-block'
+                }}></span>
+              )}
+              {filter.label}
             </button>
           );
         })}
@@ -173,7 +215,7 @@ const MenuGrid = ({
               
               {/* Premium Category Header: # Title [itemCount] */}
               <div className="customer-category-header" style={{ display: 'flex', alignItems: 'center', padding: '0 1rem', marginBottom: '1rem' }}>
-                <h2 className="customer-category-title" style={{ fontSize: '1.15rem', fontWeight: '800', textTransform: 'none', color: '#ffffff', display: 'flex', alignItems: 'center', gap: '6px', margin: 0 }}>
+                <h2 className="customer-category-title" style={{ fontSize: '1.15rem', fontWeight: '800', textTransform: 'none', color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: '6px', margin: 0 }}>
                   <span style={{ color: 'var(--color-accent)' }}>#</span> {cat.name}
                   <span style={{ fontSize: '0.78rem', fontWeight: '500', color: 'var(--text-muted)', marginLeft: '6px' }}>
                     {itemsByCategory[cat.id].length} {itemsByCategory[cat.id].length === 1 ? 'item' : 'items'}
@@ -181,11 +223,10 @@ const MenuGrid = ({
                 </h2>
               </div>
 
-              {/* 3-Column Responsive Grid */}
+              {/* 2-Column Responsive Grid */}
               <div className="customer-menu-grid-3col">
                 {itemsByCategory[cat.id].map(item => {
                   const qty = getItemQtyInCart(item.id);
-                  const isVeg = isVegItem(item.name);
                   
                   return (
                     <div 
@@ -205,6 +246,11 @@ const MenuGrid = ({
                           <span style={{ fontSize: '2rem' }}>{getIcon(item.name, 'item')}</span>
                         )}
                         
+                        {/* Prep time badge on bottom-left */}
+                        <div className="customer-vertical-prep-badge">
+                          prep:{getStablePrepTime(item.id)}
+                        </div>
+
                         {item.is_available ? (
                           <div className="customer-vertical-avail-badge">
                             <div className="customer-vertical-avail-dot"></div>
@@ -219,16 +265,14 @@ const MenuGrid = ({
                       
                       {/* Item Details */}
                       <div className="customer-vertical-content">
-                        <span className="customer-vertical-category">{cat.name}</span>
-                        <h3 className="customer-vertical-title customer-item-title">{item.name}</h3>
-                        
-                        {/* Rating stars */}
-                        <div className="customer-vertical-stars">
-                          ★ ★ ★ ★ ★
+                        <div className="customer-vertical-title-row">
+                          <h3 className="customer-vertical-title">{item.name}</h3>
+                          <span className="customer-vertical-price">₹{item.price}</span>
                         </div>
                         
-                        {/* Price */}
-                        <span className="customer-vertical-price">₹{item.price}</span>
+                        <p className="customer-vertical-desc">
+                          {item.description || 'Tasty and fresh item prepared just for you.'}
+                        </p>
 
                         {/* Actions */}
                         {qty === 0 ? (
@@ -241,7 +285,7 @@ const MenuGrid = ({
                             }}
                             disabled={!item.is_available}
                           >
-                            Add to Cart
+                            Add to Cart +
                           </button>
                         ) : (
                           <div className="customer-vertical-counter" onClick={(e) => e.stopPropagation()}>

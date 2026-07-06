@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import { useParams, useSearchParams } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
 import { useLanguage } from '../contexts/LanguageContext';
-import { Bell, MessageSquare, X, CheckCircle, Star, AlertTriangle } from 'lucide-react';
+import { Bell, MessageSquare, X, CheckCircle, Star, AlertTriangle, BookOpen, ShoppingBag, MapPin } from 'lucide-react';
 import '../customer-menu.css';
 
 import MenuHeader from '../components/Customer/MenuHeader';
@@ -70,6 +70,7 @@ const CustomerMenu = () => {
   const [tableNumber, setTableNumber] = useState('Unknown');
   const [tableId, setTableId] = useState(null);
   const [manualTableNumber, setManualTableNumber] = useState('');
+  const [activeTab, setActiveTab] = useState('menu'); // 'menu' or 'track'
   
   // Cartesian persistence in localStorage (sanitized for new customizations object structure)
   const cartKeyName = `cart_${effectiveShopId || 'default'}`;
@@ -554,6 +555,7 @@ const CustomerMenu = () => {
         .single();
 
       setActiveOrder(completeOrder);
+      setActiveTab('track');
       setCart({});
       localStorage.removeItem(`cart_${shopId}`);
       setIsCartOpen(false);
@@ -671,16 +673,6 @@ const CustomerMenu = () => {
     );
   }
 
-  if (activeOrder) {
-    return (
-      <ActiveOrderTracker 
-        activeOrder={activeOrder} 
-        setActiveOrder={setActiveOrder} 
-        isDarkMode={isDarkMode} 
-      />
-    );
-  }
-
   if (isCheckoutOpen) {
     return (
       <CheckoutView
@@ -700,7 +692,7 @@ const CustomerMenu = () => {
   }
 
   return (
-    <div className={`customer-page-wrapper ${isDarkMode ? 'customer-dark-mode' : ''}`} style={{ paddingBottom: getCartItemCount() > 0 ? '100px' : '0', transition: 'background-color 0.5s ease, color 0.5s ease' }}>
+    <div className={`customer-page-wrapper ${isDarkMode ? 'customer-dark-mode' : ''}`} style={{ paddingBottom: '90px', transition: 'background-color 0.5s ease, color 0.5s ease' }}>
       
       {/* Theme Applying Animation Overlay */}
       <div className={`theme-applying-overlay ${isAnimatingTheme ? 'active' : ''}`}>
@@ -722,21 +714,46 @@ const CustomerMenu = () => {
         t={t} 
       />
 
-      <MenuGrid 
-        categories={categories}
-        items={items}
-        activeCategoryId={activeCategoryId}
-        setActiveCategoryId={setActiveCategoryId}
-        searchQuery={searchQuery}
-        setSearchQuery={setSearchQuery}
-        addToCart={addToCart}
-        removeFromCart={removeFromCart}
-        cart={cart}
-        isDarkMode={isDarkMode}
-        t={t}
-        getIcon={getIcon}
-        onItemClick={setActiveItemForDetail}
-      />
+      {activeTab === 'menu' ? (
+        <MenuGrid 
+          categories={categories}
+          items={items}
+          activeCategoryId={activeCategoryId}
+          setActiveCategoryId={setActiveCategoryId}
+          searchQuery={searchQuery}
+          setSearchQuery={setSearchQuery}
+          addToCart={addToCart}
+          removeFromCart={removeFromCart}
+          cart={cart}
+          isDarkMode={isDarkMode}
+          t={t}
+          getIcon={getIcon}
+          onItemClick={setActiveItemForDetail}
+        />
+      ) : activeOrder ? (
+        <ActiveOrderTracker 
+          activeOrder={activeOrder} 
+          setActiveOrder={setActiveOrder} 
+          isDarkMode={isDarkMode} 
+          embedded={true}
+        />
+      ) : (
+        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '5rem 2rem', textAlign: 'center', color: 'var(--text-primary)' }}>
+          <div style={{ width: '80px', height: '80px', borderRadius: '50%', backgroundColor: 'var(--color-accent-light)', display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: '1.5rem' }}>
+            <MapPin size={36} color="var(--color-accent)" />
+          </div>
+          <h2 style={{ fontSize: '1.5rem', fontWeight: '800', marginBottom: '0.75rem' }}>No Active Orders</h2>
+          <p style={{ color: 'var(--text-secondary)', maxWidth: '320px', fontSize: '0.92rem', lineHeight: '1.5', marginBottom: '1.5rem' }}>
+            Place an order from the menu to track its status live!
+          </p>
+          <button 
+            onClick={() => setActiveTab('menu')} 
+            style={{ padding: '0.75rem 2rem', backgroundColor: 'var(--color-accent)', color: '#fff', border: 'none', borderRadius: '30px', fontWeight: '700', cursor: 'pointer', fontSize: '0.9rem' }}
+          >
+            Browse Menu
+          </button>
+        </div>
+      )}
 
       <Cart 
         cart={cart}
@@ -980,6 +997,38 @@ const CustomerMenu = () => {
           </div>
         </div>
       )}
+
+      {/* Redesigned Floating Bottom Navigation Bar */}
+      <nav className="customer-bottom-nav-bar">
+        <button 
+          className={`customer-bottom-nav-item ${activeTab === 'menu' ? 'active' : ''}`}
+          onClick={() => setActiveTab('menu')}
+        >
+          <BookOpen size={20} />
+          <span>Menu</span>
+        </button>
+        
+        <button 
+          className="customer-bottom-nav-item"
+          onClick={() => setIsCartOpen(true)}
+        >
+          <ShoppingBag size={20} />
+          <span>Cart</span>
+          {getCartItemCount() > 0 && (
+            <span className="customer-bottom-nav-badge">
+              {getCartItemCount()}
+            </span>
+          )}
+        </button>
+        
+        <button 
+          className={`customer-bottom-nav-item ${activeTab === 'track' ? 'active' : ''}`}
+          onClick={() => setActiveTab('track')}
+        >
+          <MapPin size={20} />
+          <span>Track Order</span>
+        </button>
+      </nav>
 
     </div>
   );

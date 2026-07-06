@@ -1,27 +1,32 @@
-import { useState, useEffect } from 'react';
-import { useOutletContext } from 'react-router-dom';
+import React, { useState, useEffect } from 'react';
+import { useOutletContext, useNavigate } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
-import { Calendar, FileText, ChevronDown, ChevronUp, Download } from 'lucide-react';
-import '../dashboard.css'; // Reuse dashboard styles for layout/nav
+import { 
+  Calendar, 
+  ArrowLeft, 
+  ArrowDownLeft, 
+  Download, 
+  Eye, 
+  ChevronRight,
+  ChevronDown,
+  XCircle,
+  FileText
+} from 'lucide-react';
+import '../history-redesign.css';
 import { useLanguage } from '../contexts/LanguageContext';
 
 const BillHistory = () => {
   const { shop } = useOutletContext();
+  const navigate = useNavigate();
+  const { t } = useLanguage();
+
   const [bills, setBills] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [dateFilter, setDateFilter] = useState(() => {
-    const now = new Date();
-    const cutoff = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 12, 0, 0);
-    if (now < cutoff) {
-      now.setDate(now.getDate() - 1);
-    }
-    const yyyy = now.getFullYear();
-    const mm = String(now.getMonth() + 1).padStart(2, '0');
-    const dd = String(now.getDate()).padStart(2, '0');
-    return `${yyyy}-${mm}-${dd}`;
-  }); // YYYY-MM-DD local format with 12:12 AM cutoff
+  const [dateFilter, setDateFilter] = useState('');
   const [expandedBillId, setExpandedBillId] = useState(null);
-  const { t } = useLanguage();
+
+  // Group collapses for month folders
+  const [collapsedMonths, setCollapsedMonths] = useState({});
 
   useEffect(() => {
     if (!shop) return;
@@ -33,26 +38,24 @@ const BillHistory = () => {
           .from('orders')
           .select('*, order_items(*)')
           .eq('shop_id', shop.id)
-          .eq('status', 'delivered')
+          .in('status', ['delivered', 'rejected'])
           .order('created_at', { ascending: false });
 
         if (dateFilter) {
+          // Parse dateFilter (YYYY-MM-DD)
           const [year, month, day] = dateFilter.split('-').map(Number);
-          const startOfDay = new Date(year, month - 1, day, 0, 12, 0, 0);
-          const endOfDay = new Date(year, month - 1, day, 0, 11, 59, 999);
-          endOfDay.setDate(endOfDay.getDate() + 1);
+          const startOfDay = new Date(year, month - 1, day, 0, 0, 0, 0);
+          const endOfDay = new Date(year, month - 1, day, 23, 59, 59, 999);
           
           query = query
             .gte('created_at', startOfDay.toISOString())
             .lte('created_at', endOfDay.toISOString());
         }
 
-        const { data: ordersData, error } = await query;
-        
-        if (error) {
-          console.error('Error fetching bills:', error);
-        } else if (ordersData) {
-          setBills(ordersData);
+        const { data, error } = await query;
+        if (error) throw error;
+        if (data) {
+          setBills(data);
         }
       } catch (err) {
         console.error('Error fetching bills:', err);
@@ -66,206 +69,230 @@ const BillHistory = () => {
 
   const formatDate = (dateStr) => {
     const d = new Date(dateStr);
-    const dd = String(d.getDate()).padStart(2, '0');
-    const mm = String(d.getMonth() + 1).padStart(2, '0');
-    const yyyy = d.getFullYear();
-    return `${dd}/${mm}/${yyyy}`;
+    return d.toLocaleDateString('en-US', { day: '2-digit', month: 'short', year: 'numeric' });
   };
 
-  const strftime = (dateStr) => {
+  const formatMonthYear = (dateStr) => {
     const d = new Date(dateStr);
-    const dd = String(d.getDate()).padStart(2, '0');
-    const mm = String(d.getMonth() + 1).padStart(2, '0');
-    const yyyy = d.getFullYear();
-    let hours = d.getHours();
-    const minutes = String(d.getMinutes()).padStart(2, '0');
-    const seconds = String(d.getSeconds()).padStart(2, '0');
-    const ampm = hours >= 12 ? 'PM' : 'AM';
-    hours = hours % 12;
-    hours = hours ? hours : 12;
-    const hh = String(hours).padStart(2, '0');
-    return `${dd}/${mm}/${yyyy} ${hh}:${minutes}:${seconds} ${ampm}`;
+    return d.toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
   };
 
-  // Group bills by date
+  const formatTime = (dateStr) => {
+    const d = new Date(dateStr);
+    return d.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true });
+  };
+
+  // Group bills by month-year
   const groupedBills = bills.reduce((acc, bill) => {
-    const date = formatDate(bill.created_at);
-    if (!acc[date]) {
-      acc[date] = [];
+    const monthYear = formatMonthYear(bill.created_at);
+    if (!acc[monthYear]) {
+      acc[monthYear] = {
+        bills: [],
+        total: 0
+      };
     }
-    acc[date].push(bill);
+    acc[monthYear].bills.push(bill);
+    
+    // Inflow represents successful transactions (delivered status)
+    if (bill.status === 'delivered') {
+      acc[monthYear].total += parseFloat(bill.total_amount || 0);
+    }
     return acc;
   }, {});
 
-  const formatCurrency = (amount) => {
-    return new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR' }).format(amount);
+  const toggleMonth = (month) => {
+    setCollapsedMonths(prev => ({
+      ...prev,
+      [month]: !prev[month]
+    }));
   };
 
-  const viewReceipt = (e, bill) => {
-    e.stopPropagation();
-    window.open(`/receipt/${bill.id}`, '_blank');
-  };
-
-  // Download a single bill as a text receipt
-  const downloadBill = (e, bill) => {
+  // Download receipt builder
+  const handleDownloadTxt = (e, bill) => {
     e.stopPropagation();
     const lines = [
-      `╔══════════════════════════════╗`,
-      `║        ${(shop?.name || 'CAFE').toUpperCase().padStart(14).padEnd(28)}║`,
-      `╚══════════════════════════════╝`,
-      ``,
-      `Order: ${bill.order_number || 'N/A'}`,
-      `Date/Time: ${strftime(bill.created_at)}`,
-      `Table: ${bill.table_number || 'N/A'}`,
-      `──────────────────────────────`,
+      `===============================`,
+      `       ${(shop?.name || 'SMART CAFE').toUpperCase()}`,
+      `===============================`,
+      `Order: #${bill.order_number}`,
+      `Table: ${bill.table_number}`,
+      `Date: ${formatDate(bill.created_at)}`,
+      `Time: ${formatTime(bill.created_at)}`,
+      `Status: ${bill.status.toUpperCase()}`,
+      `-------------------------------`,
       `ITEMS`,
-      `──────────────────────────────`,
+      `-------------------------------`
     ];
 
     if (bill.order_items) {
       bill.order_items.forEach(item => {
-        const name = `${item.quantity}x ${item.item_name}`;
-        const price = formatCurrency(item.price_at_time * item.quantity);
-        lines.push(`${name.padEnd(22)} ${price}`);
+        lines.push(`${item.quantity}x ${item.item_name.padEnd(20)} ₹${(item.price_at_time * item.quantity).toFixed(2)}`);
       });
     }
 
-    lines.push(`──────────────────────────────`);
-    lines.push(`TOTAL${formatCurrency(bill.total_amount).padStart(25)}`);
-    lines.push(`══════════════════════════════`);
-    if (bill.notes) {
-      lines.push(`Note: ${bill.notes}`);
-    }
-    lines.push(``, `Thank you for dining with us!`);
+    lines.push(`-------------------------------`);
+    lines.push(`TOTAL AMOUNT:         ₹${parseFloat(bill.total_amount).toFixed(2)}`);
+    lines.push(`===============================`, `Thank you for your visit!`);
 
-    const content = lines.join('\n');
-    const blob = new Blob([content], { type: 'text/plain' });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement('a');
-    link.href = url;
-    link.download = `bill-${bill.order_number || bill.id}.txt`;
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-    URL.revokeObjectURL(url);
+    const element = document.createElement("a");
+    const file = new Blob([lines.join('\n')], { type: 'text/plain' });
+    element.href = URL.createObjectURL(file);
+    element.download = `Receipt-${bill.order_number}.txt`;
+    document.body.appendChild(element);
+    element.click();
+    document.body.removeChild(element);
   };
 
   return (
-    <main className="dash-main" style={{ paddingBottom: '40px' }}>
-      {/* Filter Section */}
-      <section style={{ marginBottom: '20px' }}>
-        <div style={{ display: 'flex', alignItems: 'center', backgroundColor: 'var(--color-surface)', padding: '12px 16px', borderRadius: '12px', border: '1px solid var(--color-border)' }}>
-          <label htmlFor="bill-date-filter" style={{ display: 'flex', alignItems: 'center', marginRight: '12px' }}>
-            <Calendar size={20} color="var(--color-text-muted)" />
-            <span className="sr-only">Filter by date</span>
-          </label>
+    <div className="hist-container">
+      
+      {/* Header Row */}
+      <div className="hist-header-row">
+        <button className="hist-back-btn" onClick={() => navigate(-1)}>
+          <ArrowLeft size={16} />
+        </button>
+        <h2 className="hist-header-title">History</h2>
+      </div>
+
+      {/* Date filter row */}
+      <div className="hist-filter-row">
+        <div className="hist-date-input-wrapper">
+          <Calendar size={18} color="var(--color-text-muted)" />
           <input 
-            id="bill-date-filter"
             type="date" 
+            className="hist-datepicker"
             value={dateFilter}
             onChange={(e) => setDateFilter(e.target.value)}
-            aria-label="Filter bills by date"
-            style={{ flex: 1, border: 'none', backgroundColor: 'transparent', outline: 'none', fontSize: '1rem', color: 'var(--color-text)', fontFamily: 'inherit' }}
           />
-          {dateFilter && (
-            <button 
-              onClick={() => setDateFilter('')}
-              aria-label="Clear date filter"
-              style={{ background: 'none', border: 'none', color: 'var(--color-accent)', fontWeight: '600', fontSize: '0.85rem', cursor: 'pointer' }}
-            >
-              Clear
-            </button>
-          )}
         </div>
-      </section>
+        {dateFilter && (
+          <button className="hist-btn-clear" onClick={() => setDateFilter('')}>
+            <XCircle size={14} /> Clear
+          </button>
+        )}
+      </div>
 
-      {/* Bills List */}
+      {/* Grouped Month Cards */}
       {loading ? (
-        <div style={{ textAlign: 'center', padding: '3rem 0', color: 'var(--color-text-muted)' }}>{t.loading}</div>
+        <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '40vh' }}>
+          <div style={{ width: '40px', height: '40px', border: '4px solid var(--glass-border)', borderTop: '4px solid var(--color-accent)', borderRadius: '50%', animation: 'spin 1s linear infinite' }}></div>
+        </div>
       ) : Object.keys(groupedBills).length === 0 ? (
-        <div style={{ textAlign: 'center', padding: '3rem 0', backgroundColor: 'var(--color-surface)', borderRadius: '16px', border: '1px dashed var(--color-border)' }}>
-          <FileText size={48} color="var(--color-border)" style={{ marginBottom: '16px' }} />
-          <h2 style={{ margin: 0, fontSize: '1.25rem', color: 'var(--color-text-muted)' }}>{t.noCompletedOrders}</h2>
+        <div className="mb-empty-state" style={{ padding: '60px' }}>
+          <FileText size={40} style={{ opacity: 0.15, marginBottom: '12px' }} />
+          <p style={{ margin: 0 }}>No transaction history found.</p>
         </div>
       ) : (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
-          {Object.entries(groupedBills).map(([date, dateBills]) => (
-            <div key={date}>
-              <h2 style={{ fontSize: '0.9rem', color: 'var(--color-text-muted)', marginBottom: '12px', paddingLeft: '8px' }}>{date}</h2>
-              
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-                {dateBills.map(bill => (
-                  <div key={bill.id} style={{ backgroundColor: 'var(--color-surface)', borderRadius: '12px', border: '1px solid var(--color-border)', overflow: 'hidden' }}>
-                    
-                    {/* Bill Header (Click to expand) */}
-                    <div 
-                      onClick={() => setExpandedBillId(expandedBillId === bill.id ? null : bill.id)}
-                      style={{ padding: '16px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', cursor: 'pointer' }}
-                    >
-                      <div>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '4px' }}>
-                          <span style={{ fontWeight: '700', fontSize: '1.1rem' }}>{bill.order_number}</span>
-                          <span style={{ backgroundColor: 'rgba(76, 175, 80, 0.1)', color: '#4CAF50', padding: '2px 8px', borderRadius: '4px', fontSize: '0.7rem', fontWeight: 'bold' }}>PAID</span>
-                        </div>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '12px', fontSize: '0.85rem', color: 'var(--color-text-muted)' }}>
-                          <span>Table {bill.table_number}</span>
-                          <span>•</span>
-                          <span>{strftime(bill.created_at)}</span>
-                        </div>
-                      </div>
-                      
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                        <button
-                          onClick={(e) => viewReceipt(e, bill)}
-                          title="View Receipt"
-                          style={{ background: 'rgba(255,109,0,0.1)', border: 'none', borderRadius: '8px', padding: '6px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
-                        >
-                          <Download size={16} color="var(--color-accent)" />
-                        </button>
-                        <span style={{ fontWeight: '700', fontSize: '1.1rem', color: 'var(--color-text)' }}>
-                          {formatCurrency(bill.total_amount)}
-                        </span>
-                        {expandedBillId === bill.id ? <ChevronUp size={20} color="var(--color-text-muted)" /> : <ChevronDown size={20} color="var(--color-text-muted)" />}
-                      </div>
-                    </div>
+        Object.keys(groupedBills).map((monthYear) => {
+          const isCollapsed = collapsedMonths[monthYear];
+          const data = groupedBills[monthYear];
+          
+          return (
+            <div key={monthYear} className="mb-categories-card" style={{ padding: 0, overflow: 'hidden' }}>
+              {/* Month Header Banner */}
+              <div 
+                className="hist-month-header"
+                onClick={() => toggleMonth(monthYear)}
+              >
+                <span className="hist-month-title">{monthYear}</span>
+                <div className="hist-month-total">
+                  <span>+ ₹{data.total.toFixed(0)}</span>
+                  {isCollapsed ? <ChevronRight size={16} /> : <ChevronDown size={16} />}
+                </div>
+              </div>
 
-                    {/* Bill Details (Expanded) */}
-                    {expandedBillId === bill.id && (
-                      <div style={{ padding: '16px', borderTop: '1px dashed var(--color-border)', backgroundColor: 'var(--color-bg)' }}>
-                        <h3 style={{ margin: '0 0 12px 0', fontSize: '0.85rem', textTransform: 'uppercase', color: 'var(--color-text-muted)' }}>Order Items</h3>
-                        
-                        <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                          {bill.order_items && bill.order_items.map(item => (
-                            <div key={item.id} style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.9rem' }}>
-                              <div>
-                                <span style={{ fontWeight: '600', marginRight: '8px' }}>{item.quantity}x</span>
-                                <span>{item.item_name}</span>
-                              </div>
-                              <span>{formatCurrency(item.price_at_time * item.quantity)}</span>
+              {/* Transactions List */}
+              {!isCollapsed && (
+                <div className="hist-list">
+                  {data.bills.map((bill) => {
+                    const isExpanded = bill.id === expandedBillId;
+                    const isRejected = bill.status === 'rejected';
+                    
+                    return (
+                      <div key={bill.id} style={{ borderBottom: '1px solid var(--glass-border)' }}>
+                        <div 
+                          className="hist-item-row"
+                          onClick={() => setExpandedBillId(isExpanded ? null : bill.id)}
+                        >
+                          <div className="hist-item-left">
+                            <div className="hist-item-icon-box">
+                              <ArrowDownLeft size={18} />
                             </div>
-                          ))}
+                            <div className="hist-item-details">
+                              <span className="hist-item-subtext">Received from</span>
+                              <div className="hist-item-name-row">
+                                <span className="hist-item-name">{bill.order_number}</span>
+                                <span className={`hist-status-badge ${bill.status}`}>
+                                  {bill.status === 'delivered' ? 'SERVED' : 'REJECTED'}
+                                </span>
+                              </div>
+                              <span className="hist-item-time">{formatDate(bill.created_at)}, {formatTime(bill.created_at)}</span>
+                            </div>
+                          </div>
+
+                          <span className={`hist-item-amount ${isRejected ? 'outflow' : 'inflow'}`}>
+                            {isRejected ? `- ₹${parseFloat(bill.total_amount).toFixed(0)}` : `+ ₹${parseFloat(bill.total_amount).toFixed(0)}`}
+                          </span>
                         </div>
-                        
-                        <div style={{ marginTop: '16px', paddingTop: '12px', borderTop: '1px solid var(--color-border)', display: 'flex', justifyContent: 'space-between', fontWeight: '700', fontSize: '1.1rem' }}>
-                          <span>Grand Total</span>
-                          <span>{formatCurrency(bill.total_amount)}</span>
-                        </div>
-                        
-                        {bill.notes && (
-                          <div style={{ marginTop: '16px', padding: '12px', backgroundColor: 'rgba(255, 109, 0, 0.05)', borderRadius: '8px', border: '1px solid rgba(255, 109, 0, 0.2)' }}>
-                            <p style={{ margin: 0, fontSize: '0.85rem', color: 'var(--color-accent)' }}><strong>Note:</strong> {bill.notes}</p>
+
+                        {/* Bill Details Drawer */}
+                        {isExpanded && (
+                          <div className="hist-expanded-details animate-slide-down">
+                            <div className="hist-details-row">
+                              <span className="hist-details-label">Table Number</span>
+                              <span className="hist-details-value">Table {bill.table_number}</span>
+                            </div>
+                            <div className="hist-details-row">
+                              <span className="hist-details-label">Bill Status</span>
+                              <span className="hist-details-value" style={{ textTransform: 'capitalize' }}>{bill.status}</span>
+                            </div>
+
+                            <div className="hist-items-grid">
+                              {bill.order_items && bill.order_items.map((item) => (
+                                <div key={item.id} className="hist-item-subrow">
+                                  <span>{item.item_name} (x{item.quantity})</span>
+                                  <span>₹{(item.price_at_time * item.quantity).toFixed(2)}</span>
+                                </div>
+                              ))}
+                            </div>
+
+                            <div className="hist-details-row">
+                              <span className="hist-details-label" style={{ fontWeight: '700' }}>Grand Total</span>
+                              <span className="hist-details-value" style={{ color: isRejected ? '#ef4444' : '#10b981' }}>₹{parseFloat(bill.total_amount).toFixed(2)}</span>
+                            </div>
+
+                            <div className="hist-details-actions">
+                              <button 
+                                className="tables-btn-outline"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  window.open(`/receipt/${bill.id}`, '_blank');
+                                }}
+                                style={{ flex: 1, padding: '8px' }}
+                              >
+                                <Eye size={14} /> View Receipt
+                              </button>
+                              <button 
+                                className="tables-btn-primary"
+                                onClick={(e) => handleDownloadTxt(e, bill)}
+                                style={{ flex: 1, padding: '8px' }}
+                              >
+                                <Download size={14} /> Download TXT
+                              </button>
+                            </div>
                           </div>
                         )}
                       </div>
-                    )}
-                  </div>
-                ))}
-              </div>
+                    );
+                  })}
+                </div>
+              )}
             </div>
-          ))}
-        </div>
+          );
+        })
       )}
-    </main>
+
+    </div>
   );
 };
 
