@@ -18,31 +18,82 @@ import { supabase } from '../lib/supabase';
 import '../menu-builder.css';
 import { useLanguage } from '../contexts/LanguageContext';
 
-const DEFAULT_CATEGORIES = [
-  '🍽️ Starters',
-  '🥗 Soups & Salads',
-  '🍟 Snacks',
-  '🍕 Fast Food',
-  '🍔 Burgers & Sandwiches',
-  '🍝 Pasta & Noodles',
-  '🍗 Chicken Specials',
-  '🥩 Mutton Specials',
-  '🐟 Seafood',
-  '🍛 Curries',
-  '🍚 Rice & Biryani',
-  '🍞 Roti, Naan & Bread',
-  '🥟 Momos',
-  '🌮 Wraps & Rolls',
-  '🧀 Vegetarian',
-  '🌱 Vegan',
-  '🍰 Desserts',
-  '🥤 Beverages',
-  '☕ Tea & Coffee',
-  '🍹 Mocktails & Fresh Juices',
-  '⭐ Chef\'s Specials',
-  '🔥 Today\'s Specials',
-  '🎉 Combo Meals'
-];
+const RESTAURANT_PRESETS = {
+  'Restaurant': [
+    '🍽️ Starters',
+    '🍲 Main Course',
+    '🍚 Rice & Biryani',
+    '🍞 Breads',
+    '🥤 Drinks',
+    '🍰 Desserts',
+    '🎉 Combos'
+  ],
+  'Cafe': [
+    '☕ Coffee',
+    '🫖 Tea',
+    '🍰 Desserts',
+    '🥤 Beverages',
+    '🥪 Snacks & Sandwiches'
+  ],
+  'Fast Food': [
+    '🍔 Burgers',
+    '🍕 Pizza',
+    '🍟 Fries & Sides',
+    '🥤 Soft Drinks',
+    '🌮 Wraps & Rolls'
+  ],
+  'Bakery': [
+    '🎂 Cakes',
+    '🥐 Pastries',
+    '🧁 Cupcakes',
+    '🍞 Breads',
+    '☕ Coffee & Tea'
+  ],
+  'Juice Shop': [
+    '🧃 Fresh Juices',
+    '🥤 Smoothies',
+    '🧋 Milkshakes',
+    '🍧 Mocktails'
+  ],
+  'Cloud Kitchen': [
+    '🍽️ Starters',
+    '🍲 Main Course',
+    '🍚 Rice & Biryani',
+    '🍞 Breads',
+    '🥤 Drinks',
+    '🍰 Desserts',
+    '🎉 Combos'
+  ]
+};
+
+const DEFAULT_CATEGORIES = RESTAURANT_PRESETS['Restaurant'];
+
+const getCategoryType = (categoryName) => {
+  if (!categoryName) return 'food';
+  const lower = categoryName.toLowerCase();
+  if (
+    lower.includes('drink') || 
+    lower.includes('beverage') || 
+    lower.includes('tea') || 
+    lower.includes('coffee') || 
+    lower.includes('juice') || 
+    lower.includes('smoothie') || 
+    lower.includes('mocktail')
+  ) {
+    return 'drinks';
+  }
+  if (
+    lower.includes('dessert') || 
+    lower.includes('cake') || 
+    lower.includes('pastry') || 
+    lower.includes('sweet') || 
+    lower.includes('ice cream') ||
+    lower.includes('bakery')
+  ) {
+    return 'desserts';
+  }
+  return 'food';
+};
 
 const MenuBuilder = () => {
   const navigate = useNavigate();
@@ -56,9 +107,13 @@ const MenuBuilder = () => {
   const [published, setPublished] = useState(false);
 
   const [activeCategoryId, setActiveCategoryId] = useState(null);
+  const [selectedPresetType, setSelectedPresetType] = useState('Restaurant');
   
   // Item Form Fields
   const [newItem, setNewItem] = useState({ name: '', price: '', description: '' });
+  const [imageFile, setImageFile] = useState(null);
+  const [imagePreview, setImagePreview] = useState('');
+  const [uploadingImage, setUploadingImage] = useState(false);
   const [prepTime, setPrepTime] = useState(10);
   const [dietType, setDietType] = useState('veg'); // veg, non-veg, spicy, gluten-free
   const [customizationOptions, setCustomizationOptions] = useState([]); // Legacy
@@ -213,41 +268,67 @@ const MenuBuilder = () => {
         (customizationOptions.length > 0 ? ` [CUSTOMIZATIONS: ${customizationOptions.join('; ')}]` : '');
 
       try {
-        let savedItemId = null;
-        if (editingItemId) {
-          // Update existing item
-          const { data, error } = await supabase.from('items').update({
-            name: newItem.name, 
-            price: parseFloat(newItem.price), 
-            description: descToSave,
-            is_available: isAvailable
-          }).eq('id', editingItemId).select();
+          // Upload image if selected
+          let uploadedImageUrl = null;
+          if (imageFile) {
+            setUploadingImage(true);
+            const fileExt = imageFile.name.split('.').pop();
+            const fileName = `items/${shop.id}/${Date.now()}-${Math.random().toString(36).substring(2)}.${fileExt}`;
+            
+            const { data: uploadData, error: uploadError } = await supabase.storage
+              .from('shop-logos')
+              .upload(fileName, imageFile, { cacheControl: '3600', upsert: false });
 
-          if (error) throw error;
-          if (data) {
-            setItems(items.map(item => item.id === editingItemId ? data[0] : item));
-            savedItemId = editingItemId;
-            // Clear old customizations for a full replacement
-            await supabase.from('item_customization_groups').delete().eq('item_id', savedItemId);
+            if (uploadError) {
+              console.error("Image upload failed:", uploadError);
+              alert("Image upload failed, continuing without image...");
+            } else if (uploadData) {
+              const { data: { publicUrl } } = supabase.storage
+                .from('shop-logos')
+                .getPublicUrl(fileName);
+              uploadedImageUrl = publicUrl;
+            }
+            setUploadingImage(false);
           }
-        } else {
-          // Insert new item
-          const { data, error } = await supabase.from('items').insert([
-            { 
+
+          if (editingItemId) {
+            // Update existing item
+            const updatePayload = {
+              name: newItem.name, 
+              price: parseFloat(newItem.price), 
+              description: descToSave,
+              is_available: isAvailable
+            };
+            if (uploadedImageUrl) updatePayload.image_url = uploadedImageUrl;
+
+            const { data, error } = await supabase.from('items').update(updatePayload).eq('id', editingItemId).select();
+
+            if (error) throw error;
+            if (data) {
+              setItems(items.map(item => item.id === editingItemId ? data[0] : item));
+              savedItemId = editingItemId;
+              // Clear old customizations for a full replacement
+              await supabase.from('item_customization_groups').delete().eq('item_id', savedItemId);
+            }
+          } else {
+            // Insert new item
+            const insertPayload = { 
               category_id: activeCategoryId, 
               name: newItem.name, 
               price: parseFloat(newItem.price), 
               description: descToSave,
               is_available: isAvailable
-            }
-          ]).select();
+            };
+            if (uploadedImageUrl) insertPayload.image_url = uploadedImageUrl;
 
-          if (error) throw error;
-          if (data) {
-            setItems([...items, data[0]]);
-            savedItemId = data[0].id;
+            const { data, error } = await supabase.from('items').insert([insertPayload]).select();
+
+            if (error) throw error;
+            if (data) {
+              setItems([...items, data[0]]);
+              savedItemId = data[0].id;
+            }
           }
-        }
 
         // Save V2 Customizations
         if (savedItemId && localCustomizationGroups.length > 0) {
@@ -314,6 +395,8 @@ const MenuBuilder = () => {
     setEditingItemId(item.id);
     const meta = parseMetadata(item.description);
     setNewItem({ name: item.name, price: item.price, description: meta.cleanDesc });
+    setImageFile(null);
+    setImagePreview(item.image_url || '');
     setPrepTime(meta.prep);
     setDietType(meta.diet);
     setCustomizationOptions(meta.customs);
@@ -414,6 +497,8 @@ const MenuBuilder = () => {
   const resetForm = () => {
     setEditingItemId(null);
     setNewItem({ name: '', price: '', description: '' });
+    setImageFile(null);
+    setImagePreview('');
     setPrepTime(10);
     setDietType('veg');
     setCustomizationOptions([]);
@@ -524,9 +609,36 @@ const MenuBuilder = () => {
             {/* Load Default Categories (shown when empty) */}
             {categories.length === 0 && (
               <div style={{ padding: '1rem', borderRadius: '12px', border: '1px dashed var(--color-accent)', background: 'rgba(255,109,0,0.05)', marginBottom: '0.75rem' }}>
-                <p style={{ fontSize: '0.85rem', fontWeight: 600, color: 'var(--color-accent)', marginBottom: '0.75rem', textAlign: 'center' }}>Quick Start: Select Default Categories</p>
+                <p style={{ fontSize: '0.85rem', fontWeight: 600, color: 'var(--color-accent)', marginBottom: '0.5rem', textAlign: 'center' }}>Quick Start: Select Preset Categories</p>
+                
+                {/* Restaurant Type Selector */}
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px', marginBottom: '0.75rem', justifyContent: 'center' }}>
+                  {Object.keys(RESTAURANT_PRESETS).map(type => (
+                    <button
+                      key={type}
+                      type="button"
+                      onClick={() => {
+                        setSelectedPresetType(type);
+                        setSelectedDefaults(new Set(RESTAURANT_PRESETS[type]));
+                      }}
+                      style={{
+                        padding: '4px 8px',
+                        fontSize: '0.7rem',
+                        borderRadius: '6px',
+                        border: selectedPresetType === type ? '1px solid var(--color-accent)' : '1px solid var(--glass-border)',
+                        background: selectedPresetType === type ? 'var(--color-accent)' : 'transparent',
+                        color: selectedPresetType === type ? '#fff' : 'var(--color-text-muted)',
+                        cursor: 'pointer',
+                        fontWeight: selectedPresetType === type ? 600 : 400
+                      }}
+                    >
+                      {type}
+                    </button>
+                  ))}
+                </div>
+
                 <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px', marginBottom: '0.75rem', maxHeight: '260px', overflowY: 'auto' }}>
-                  {DEFAULT_CATEGORIES.map(cat => (
+                  {(RESTAURANT_PRESETS[selectedPresetType] || DEFAULT_CATEGORIES).map(cat => (
                     <button
                       key={cat}
                       type="button"
@@ -551,12 +663,13 @@ const MenuBuilder = () => {
                   <button
                     type="button"
                     onClick={() => {
-                      if (selectedDefaults.size === DEFAULT_CATEGORIES.length) setSelectedDefaults(new Set());
-                      else setSelectedDefaults(new Set(DEFAULT_CATEGORIES));
+                      const currentList = RESTAURANT_PRESETS[selectedPresetType] || DEFAULT_CATEGORIES;
+                      if (selectedDefaults.size === currentList.length) setSelectedDefaults(new Set());
+                      else setSelectedDefaults(new Set(currentList));
                     }}
                     style={{ flex: 1, padding: '8px', fontSize: '0.75rem', borderRadius: '8px', border: '1px solid var(--glass-border)', background: 'transparent', color: 'var(--color-text-muted)', cursor: 'pointer' }}
                   >
-                    {selectedDefaults.size === DEFAULT_CATEGORIES.length ? 'Deselect All' : 'Select All'}
+                    {selectedDefaults.size === (RESTAURANT_PRESETS[selectedPresetType] || DEFAULT_CATEGORIES).length ? 'Deselect All' : 'Select All'}
                   </button>
                   <button
                     type="button"
@@ -610,12 +723,30 @@ const MenuBuilder = () => {
               
               {/* Top section: Upload area on the left, Input fields on the right */}
               <div className="mb-form-top-row">
-                <div className="mb-upload-area">
-                  <div className="mb-upload-icon-circle">
-                    <Plus size={24} />
-                  </div>
-                  <span className="mb-upload-label">Click to Upload Image</span>
-                  <span style={{ fontSize: '0.68rem', color: 'var(--color-text-muted)', opacity: 0.5 }}>Image Upload</span>
+                <div className="mb-upload-area" onClick={() => document.getElementById('item-image-upload').click()}>
+                  <input 
+                    type="file" 
+                    id="item-image-upload" 
+                    hidden 
+                    accept="image/*"
+                    onChange={(e) => {
+                      if (e.target.files && e.target.files[0]) {
+                        setImageFile(e.target.files[0]);
+                        setImagePreview(URL.createObjectURL(e.target.files[0]));
+                      }
+                    }}
+                  />
+                  {imagePreview ? (
+                    <img src={imagePreview} alt="Preview" style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: '14px' }} />
+                  ) : (
+                    <>
+                      <div className="mb-upload-icon-circle">
+                        <Plus size={24} />
+                      </div>
+                      <span className="mb-upload-label" style={{ textAlign: 'center' }}>Click to Upload</span>
+                      <span style={{ fontSize: '0.68rem', color: 'var(--color-text-muted)', opacity: 0.5 }}>Image</span>
+                    </>
+                  )}
                 </div>
 
                 <div className="mb-form-top-fields">
@@ -686,26 +817,143 @@ const MenuBuilder = () => {
                 </div>
               </div>
 
-              {/* Dietary Tags Selector Row */}
-              <div className="mb-form-group" style={{ marginBottom: '20px' }}>
-                <label>Dietary Tag</label>
-                <div className="mb-dietary-selector">
-                  {['veg', 'non-veg', 'vegan', 'gluten-free', 'spicy'].map(tag => (
-                    <button
-                      key={tag}
-                      type="button"
-                      className={`mb-dietary-pill ${dietType === tag ? 'active' : ''}`}
-                      onClick={() => setDietType(tag)}
-                    >
-                      {tag === 'veg' && '🟢 Veg'}
-                      {tag === 'non-veg' && '🔴 Non-Veg'}
-                      {tag === 'vegan' && '🌱 Vegan'}
-                      {tag === 'gluten-free' && '🌾 Gluten-Free'}
-                      {tag === 'spicy' && '🔥 Spicy'}
-                    </button>
-                  ))}
-                </div>
-              </div>
+              {/* Dynamic Attribute & Tag Groups based on Active Category */}
+              {(() => {
+                const catType = getCategoryType(activeCategory?.name);
+                const selectedTags = dietType ? dietType.split(',').map(s => s.trim()) : [];
+                
+                const toggleTag = (tagKey) => {
+                  if (selectedTags.includes(tagKey)) {
+                    const next = selectedTags.filter(t => t !== tagKey);
+                    setDietType(next.join(', '));
+                  } else {
+                    const next = [...selectedTags, tagKey];
+                    setDietType(next.join(', '));
+                  }
+                };
+
+                return (
+                  <div style={{ marginBottom: '20px', display: 'flex', flexDirection: 'column', gap: '16px' }}>
+                    {catType === 'food' && (
+                      <>
+                        <div className="mb-form-group">
+                          <label style={{ fontSize: '0.85rem', fontWeight: 600, color: 'var(--color-text-main)' }}>Dietary Attributes</label>
+                          <div className="mb-dietary-selector">
+                            {[
+                              { key: 'veg', label: '🟢 Veg' },
+                              { key: 'non-veg', label: '🔴 Non-Veg' },
+                              { key: 'egg', label: '🥚 Egg' },
+                              { key: 'vegan', label: '🌱 Vegan' },
+                              { key: 'jain', label: '🙏 Jain' },
+                              { key: 'gluten-free', label: '🌾 Gluten-Free' }
+                            ].map(({ key, label }) => (
+                              <button
+                                key={key}
+                                type="button"
+                                className={`mb-dietary-pill ${selectedTags.includes(key) ? 'active' : ''}`}
+                                onClick={() => toggleTag(key)}
+                              >
+                                {label}
+                              </button>
+                            ))}
+                          </div>
+                        </div>
+
+                        <div className="mb-form-group">
+                          <label style={{ fontSize: '0.85rem', fontWeight: 600, color: 'var(--color-text-main)' }}>Spice Level</label>
+                          <div className="mb-dietary-selector">
+                            {[
+                              { key: 'mild', label: '🌶️ Mild' },
+                              { key: 'medium', label: '🌶️🌶️ Medium' },
+                              { key: 'spicy', label: '🔥 Spicy' },
+                              { key: 'extra-spicy', label: '💥 Extra Spicy' }
+                            ].map(({ key, label }) => (
+                              <button
+                                key={key}
+                                type="button"
+                                className={`mb-dietary-pill ${selectedTags.includes(key) ? 'active' : ''}`}
+                                onClick={() => toggleTag(key)}
+                              >
+                                {label}
+                              </button>
+                            ))}
+                          </div>
+                        </div>
+                      </>
+                    )}
+
+                    {catType === 'drinks' && (
+                      <>
+                        <div className="mb-form-group">
+                          <label style={{ fontSize: '0.85rem', fontWeight: 600, color: 'var(--color-text-main)' }}>Temperature</label>
+                          <div className="mb-dietary-selector">
+                            {[
+                              { key: 'hot', label: '☕ Hot' },
+                              { key: 'cold', label: '🧊 Cold' }
+                            ].map(({ key, label }) => (
+                              <button
+                                key={key}
+                                type="button"
+                                className={`mb-dietary-pill ${selectedTags.includes(key) ? 'active' : ''}`}
+                                onClick={() => toggleTag(key)}
+                              >
+                                {label}
+                              </button>
+                            ))}
+                          </div>
+                        </div>
+
+                        <div className="mb-form-group">
+                          <label style={{ fontSize: '0.85rem', fontWeight: 600, color: 'var(--color-text-main)' }}>Drink Type</label>
+                          <div className="mb-dietary-selector">
+                            {[
+                              { key: 'coffee', label: '☕ Coffee' },
+                              { key: 'tea', label: '🫖 Tea' },
+                              { key: 'juice', label: '🧃 Juice' },
+                              { key: 'milkshake', label: '🥤 Milkshake' },
+                              { key: 'mocktail', label: '🍹 Mocktail' },
+                              { key: 'soft-drink', label: '🥤 Soft Drink' }
+                            ].map(({ key, label }) => (
+                              <button
+                                key={key}
+                                type="button"
+                                className={`mb-dietary-pill ${selectedTags.includes(key) ? 'active' : ''}`}
+                                onClick={() => toggleTag(key)}
+                              >
+                                {label}
+                              </button>
+                            ))}
+                          </div>
+                        </div>
+                      </>
+                    )}
+
+                    {catType === 'desserts' && (
+                      <div className="mb-form-group">
+                        <label style={{ fontSize: '0.85rem', fontWeight: 600, color: 'var(--color-text-main)' }}>Dessert Type & Attributes</label>
+                        <div className="mb-dietary-selector">
+                          {[
+                            { key: 'eggless', label: '🟢 Eggless' },
+                            { key: 'contains-egg', label: '🥚 Contains Egg' },
+                            { key: 'ice-cream', label: '🍨 Ice Cream' },
+                            { key: 'frozen', label: '❄️ Frozen' },
+                            { key: 'served-hot', label: '🔥 Served Hot' }
+                          ].map(({ key, label }) => (
+                            <button
+                              key={key}
+                              type="button"
+                              className={`mb-dietary-pill ${selectedTags.includes(key) ? 'active' : ''}`}
+                              onClick={() => toggleTag(key)}
+                            >
+                              {label}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                );
+              })()}
 
               {/* V2 Customizations Section */}
               <div className="mb-customizations-card" style={{ padding: '20px', background: 'var(--color-surface)', borderRadius: '12px', border: '1px solid var(--glass-border)', marginTop: '24px' }}>
@@ -802,8 +1050,12 @@ const MenuBuilder = () => {
                     </button>
                   )}
                 </div>
-                <button type="submit" className="tables-btn-primary">
-                  {editingItemId ? 'Update Item' : '+ Add Item'}
+                <button 
+                  type="submit" 
+                  className="tables-btn-primary"
+                  disabled={uploadingImage}
+                >
+                  {uploadingImage ? 'Uploading...' : (editingItemId ? 'Update Item' : '+ Add Item')}
                 </button>
               </div>
 

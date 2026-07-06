@@ -45,6 +45,267 @@ const TemplateLibrary = () => {
   
   const [addingOptionToGroup, setAddingOptionToGroup] = useState(null);
   const [newOption, setNewOption] = useState({ name: '', price_type: 'fixed', price_value: 0, is_default: false });
+  const [loadingPresets, setLoadingPresets] = useState(false);
+
+  const PRESET_TEMPLATES = [
+    {
+      name: '🥤 Drinks Customizations',
+      groups: [
+        {
+          name: 'Sugar Level',
+          selection_type: 'radio',
+          is_required: true,
+          options: [
+            { name: 'No Sugar', price_value: 0, is_default: false },
+            { name: 'Less Sugar', price_value: 0, is_default: false },
+            { name: 'Normal Sugar', price_value: 0, is_default: true },
+            { name: 'Extra Sugar', price_value: 0, is_default: false }
+          ]
+        },
+        {
+          name: 'Milk Type',
+          selection_type: 'radio',
+          is_required: false,
+          options: [
+            { name: 'Regular Milk', price_value: 0, is_default: true },
+            { name: 'Toned Milk', price_value: 0, is_default: false },
+            { name: 'Almond Milk', price_value: 20, is_default: false },
+            { name: 'Oat Milk', price_value: 20, is_default: false },
+            { name: 'Soy Milk', price_value: 15, is_default: false }
+          ]
+        },
+        {
+          name: 'Size',
+          selection_type: 'radio',
+          is_required: true,
+          options: [
+            { name: 'Small', price_value: 0, is_default: false },
+            { name: 'Regular', price_value: 0, is_default: true },
+            { name: 'Large', price_value: 30, is_default: false }
+          ]
+        },
+        {
+          name: 'Ice Level',
+          selection_type: 'radio',
+          is_required: false,
+          options: [
+            { name: 'No Ice', price_value: 0, is_default: false },
+            { name: 'Less Ice', price_value: 0, is_default: false },
+            { name: 'Normal Ice', price_value: 0, is_default: true },
+            { name: 'Extra Ice', price_value: 0, is_default: false }
+          ]
+        },
+        {
+          name: 'Add-ons',
+          selection_type: 'checkbox',
+          is_required: false,
+          max_selections: 5,
+          options: [
+            { name: 'Extra Espresso Shot', price_value: 40, is_default: false },
+            { name: 'Whipped Cream', price_value: 20, is_default: false },
+            { name: 'Flavored Syrup', price_value: 15, is_default: false },
+            { name: 'Extra Mint', price_value: 0, is_default: false }
+          ]
+        }
+      ]
+    },
+    {
+      name: '🍲 Main Course Customizations',
+      groups: [
+        {
+          name: 'Spice Level',
+          selection_type: 'radio',
+          is_required: true,
+          options: [
+            { name: 'Mild', price_value: 0, is_default: false },
+            { name: 'Medium', price_value: 0, is_default: true },
+            { name: 'Spicy', price_value: 0, is_default: false },
+            { name: 'Extra Spicy', price_value: 0, is_default: false }
+          ]
+        },
+        {
+          name: 'Gravy Consistency',
+          selection_type: 'radio',
+          is_required: false,
+          options: [
+            { name: 'Thick', price_value: 0, is_default: false },
+            { name: 'Regular', price_value: 0, is_default: true },
+            { name: 'Thin', price_value: 0, is_default: false }
+          ]
+        },
+        {
+          name: 'Add-ons',
+          selection_type: 'checkbox',
+          is_required: false,
+          max_selections: 5,
+          options: [
+            { name: 'Extra Paneer', price_value: 40, is_default: false },
+            { name: 'Extra Chicken', price_value: 60, is_default: false },
+            { name: 'Extra Gravy', price_value: 30, is_default: false },
+            { name: 'Butter Topping', price_value: 20, is_default: false }
+          ]
+        }
+      ]
+    },
+    {
+      name: '🍚 Rice & Biryani Customizations',
+      groups: [
+        {
+          name: 'Spice Level',
+          selection_type: 'radio',
+          is_required: true,
+          options: [
+            { name: 'Mild', price_value: 0, is_default: false },
+            { name: 'Medium', price_value: 0, is_default: true },
+            { name: 'Spicy', price_value: 0, is_default: false }
+          ]
+        },
+        {
+          name: 'Portion Size',
+          selection_type: 'radio',
+          is_required: true,
+          options: [
+            { name: 'Half', price_value: 0, is_default: false },
+            { name: 'Full', price_value: 0, is_default: true },
+            { name: 'Jumbo', price_value: 80, is_default: false }
+          ]
+        },
+        {
+          name: 'Biryani Add-ons',
+          selection_type: 'checkbox',
+          is_required: false,
+          max_selections: 5,
+          options: [
+            { name: 'Extra Raita', price_value: 20, is_default: false },
+            { name: 'Boiled Egg', price_value: 15, is_default: false },
+            { name: 'Extra Salan', price_value: 25, is_default: false },
+            { name: 'Papad', price_value: 10, is_default: false }
+          ]
+        }
+      ]
+    },
+    {
+      name: '🍞 Breads Customizations',
+      groups: [
+        {
+          name: 'Flavor / Type',
+          selection_type: 'radio',
+          is_required: true,
+          options: [
+            { name: 'Plain', price_value: 0, is_default: true },
+            { name: 'Butter', price_value: 10, is_default: false },
+            { name: 'Garlic', price_value: 15, is_default: false }
+          ]
+        },
+        {
+          name: 'Quantity Pack',
+          selection_type: 'radio',
+          is_required: true,
+          options: [
+            { name: '1 pc', price_value: 0, is_default: true },
+            { name: '2 pcs', price_value: 0, is_default: false },
+            { name: '4 pcs (Set)', price_value: 0, is_default: false }
+          ]
+        }
+      ]
+    },
+    {
+      name: '🍰 Desserts Customizations',
+      groups: [
+        {
+          name: 'Serving Style',
+          selection_type: 'radio',
+          is_required: false,
+          options: [
+            { name: 'Regular', price_value: 0, is_default: true },
+            { name: 'With Ice Cream', price_value: 30, is_default: false },
+            { name: 'Warm', price_value: 0, is_default: false }
+          ]
+        },
+        {
+          name: 'Portion Size',
+          selection_type: 'radio',
+          is_required: false,
+          options: [
+            { name: 'Small', price_value: 0, is_default: false },
+            { name: 'Regular', price_value: 0, is_default: true },
+            { name: 'Sharing', price_value: 50, is_default: false }
+          ]
+        }
+      ]
+    },
+    {
+      name: '📦 Packaging & Instructions',
+      groups: [
+        {
+          name: 'Packaging Type',
+          selection_type: 'radio',
+          is_required: false,
+          options: [
+            { name: 'Standard Packaging', price_value: 0, is_default: true },
+            { name: 'Eco-Friendly Packaging', price_value: 10, is_default: false }
+          ]
+        }
+      ]
+    }
+  ];
+
+  const loadDefaultPresetTemplates = async () => {
+    if (!shop?.id) return;
+    setLoadingPresets(true);
+    try {
+      for (const tpl of PRESET_TEMPLATES) {
+        const { data: tData, error: tError } = await supabase
+          .from('customization_templates')
+          .insert([{ shop_id: shop.id, name: tpl.name }])
+          .select();
+
+        if (tError) throw tError;
+        const templateId = tData[0].id;
+
+        for (let gIdx = 0; gIdx < tpl.groups.length; gIdx++) {
+          const grp = tpl.groups[gIdx];
+          const { data: gData, error: gError } = await supabase
+            .from('template_groups')
+            .insert([{
+              template_id: templateId,
+              name: grp.name,
+              selection_type: grp.selection_type,
+              is_required: grp.is_required !== false,
+              min_selections: grp.is_required ? 1 : 0,
+              max_selections: grp.max_selections || 1,
+              display_order: gIdx
+            }])
+            .select();
+
+          if (gError) throw gError;
+          const groupId = gData[0].id;
+
+          const optRows = grp.options.map((opt, oIdx) => ({
+            group_id: groupId,
+            name: opt.name,
+            price_type: 'fixed',
+            price_value: opt.price_value,
+            is_default: opt.is_default || false,
+            display_order: oIdx
+          }));
+
+          const { error: oError } = await supabase
+            .from('template_options')
+            .insert(optRows);
+
+          if (oError) throw oError;
+        }
+      }
+
+      await fetchTemplates();
+    } catch (err) {
+      console.error("Error seeding default templates:", err);
+      alert("Failed to load default templates: " + err.message);
+    } finally {
+      setLoadingPresets(false);
+    }
+  };
 
   useEffect(() => {
     if (shop?.id) {
@@ -241,6 +502,32 @@ const TemplateLibrary = () => {
               <button className="mb-add-category-btn" onClick={createTemplate}>
                 <Plus size={16} />
               </button>
+            </div>
+
+            {/* Load Predefined Presets Button */}
+            <div style={{ marginTop: '1rem', paddingTop: '1rem', borderTop: '1px dashed var(--glass-border)' }}>
+              <button
+                type="button"
+                onClick={loadDefaultPresetTemplates}
+                disabled={loadingPresets}
+                style={{
+                  width: '100%',
+                  padding: '10px',
+                  fontSize: '0.8rem',
+                  fontWeight: 600,
+                  borderRadius: '10px',
+                  border: '1.5px solid var(--color-accent)',
+                  background: 'rgba(255,109,0,0.1)',
+                  color: 'var(--color-accent)',
+                  cursor: 'pointer',
+                  transition: 'all 0.2s ease'
+                }}
+              >
+                {loadingPresets ? 'Loading Presets...' : '⚡ Load Predefined Templates'}
+              </button>
+              <p style={{ fontSize: '0.7rem', color: 'var(--color-text-muted)', textAlign: 'center', marginTop: '6px', marginBotton: 0 }}>
+                Auto-generates Drinks, Main Course, Biryani, Breads & Desserts templates
+              </p>
             </div>
           </div>
         </div>
