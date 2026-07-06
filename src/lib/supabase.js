@@ -773,14 +773,8 @@ const mockSupabase = {
   }
 };
 
-if (typeof window !== 'undefined') {
-  if (window.location.search.includes('mock=true')) {
-    localStorage.setItem('supabase_mock_mode', 'true');
-  } else if (window.location.search.includes('mock=false')) {
-    localStorage.setItem('supabase_mock_mode', 'false');
-  }
-}
-
+// Mock mode is evaluated on the fly via URL, but we NO LONGER persist it permanently to localStorage 
+// just because a URL parameter is present, as this corrupts production deployments.
 export const isMockMode = typeof window !== 'undefined' && (
   localStorage.getItem('supabase_mock_mode') === 'true' ||
   (

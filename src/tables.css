@@ -443,6 +443,18 @@
   border-color: var(--color-accent);
 }
 
+.detail-btn-wide.reset {
+  margin-top: 10px;
+  border-color: rgba(239, 68, 68, 0.4);
+  color: #ef4444;
+  background-color: rgba(239, 68, 68, 0.02);
+}
+
+.detail-btn-wide.reset:hover {
+  border-color: #ef4444;
+  background-color: rgba(239, 68, 68, 0.08);
+}
+
 /* Recent Activity Section */
 .tables-activity-card {
   background-color: var(--color-surface);

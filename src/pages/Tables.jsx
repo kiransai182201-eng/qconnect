@@ -1,5 +1,6 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useOutletContext, useNavigate } from 'react-router-dom';
+import html2canvas from 'html2canvas';
 import { supabase } from '../lib/supabase';
 import { 
   TableProperties, 
@@ -9,18 +10,21 @@ import {
   HelpCircle,
   Clock,
   TrendingUp,
-  Users
+  Users,
+  RotateCcw
 } from 'lucide-react';
 import '../tables.css';
 
 const Tables = () => {
-  const { shop, setShop, orders } = useOutletContext();
+  const { shop, setShop, orders, setOrders } = useOutletContext();
   const navigate = useNavigate();
 
   const [tables, setTables] = useState([]);
   const [loading, setLoading] = useState(true);
   const [addingTable, setAddingTable] = useState(false);
+  const [resettingTable, setResettingTable] = useState(false);
   const [selectedTableId, setSelectedTableId] = useState(null);
+  const hiddenReceiptRef = useRef(null);
 
   // Fetch tables list from Supabase
   const fetchTables = async () => {
@@ -128,6 +132,63 @@ const Tables = () => {
       alert(`Failed to add table: ${err.message}`);
     } finally {
       setAddingTable(false);
+    }
+  };
+
+  const handleResetTable = async () => {
+    if (!selectedTable || !shop) return;
+    const confirmMsg = `Are you sure you want to reset Table T0${selectedTable.table_number}? This will automatically download the session bill receipt as a PNG image and clear all active orders for this table.`;
+    if (!window.confirm(confirmMsg)) return;
+
+    try {
+      setResettingTable(true);
+      
+      // Step 1: Render off-screen receipt container into a canvas and trigger PNG download
+      if (hiddenReceiptRef.current && selectedTableOrders.length > 0) {
+        try {
+          const canvas = await html2canvas(hiddenReceiptRef.current, {
+            scale: 2, // improve text quality
+            useCORS: true,
+            backgroundColor: '#faf8f5'
+          });
+          const dataUrl = canvas.toDataURL('image/png');
+          const link = document.createElement('a');
+          link.href = dataUrl;
+          const orderNum = latestOrder ? latestOrder.order_number : `table-T${selectedTable.table_number}`;
+          link.download = `receipt-${orderNum}.png`;
+          document.body.appendChild(link);
+          link.click();
+          document.body.removeChild(link);
+        } catch (canvasErr) {
+          console.error('Error generating PNG receipt:', canvasErr);
+        }
+      }
+      
+      // Step 2: Update active orders status to 'delivered' in database
+      const { error } = await supabase
+        .from('orders')
+        .update({ status: 'delivered' })
+        .eq('shop_id', shop.id)
+        .eq('table_number', String(selectedTable.table_number))
+        .in('status', ['pending', 'accepted', 'preparing', 'ready']);
+
+      if (error) throw error;
+
+      // Update the context orders list (filtering out the newly delivered orders)
+      if (setOrders) {
+        setOrders(prev => prev.filter(o => 
+          !(String(o.table_number) === String(selectedTable.table_number) && 
+            ['pending', 'accepted', 'preparing', 'ready'].includes(o.status))
+        ));
+      }
+
+      // Refresh tables list to update dashboard status
+      await fetchTables();
+    } catch (err) {
+      console.error('Error resetting table:', err);
+      alert(`Failed to reset table: ${err.message}`);
+    } finally {
+      setResettingTable(false);
     }
   };
 
@@ -442,10 +503,105 @@ const Tables = () => {
               <Eye size={16} />
               View Orders
             </button>
+
+            <button 
+              className="detail-btn-wide reset"
+              onClick={handleResetTable}
+              disabled={resettingTable || selectedStatus === 'available'}
+            >
+              <RotateCcw size={16} />
+              {resettingTable ? 'Resetting Table...' : 'Reset Table'}
+            </button>
           </div>
         )}
 
       </div>
+
+      {/* Hidden Receipt Element for PNG Download */}
+      {selectedTable && (
+        <div 
+          ref={hiddenReceiptRef}
+          style={{
+            position: 'absolute',
+            left: '-9999px',
+            top: '-9999px',
+            width: '360px',
+            padding: '24px',
+            backgroundColor: '#faf8f5',
+            color: '#1c1512',
+            fontFamily: 'var(--font-body)',
+            borderRadius: '16px',
+            boxShadow: '0 4px 20px rgba(0,0,0,0.1)',
+            display: 'flex',
+            flexDirection: 'column',
+            gap: '12px'
+          }}
+        >
+          <div style={{ textAlign: 'center', borderBottom: '1px dashed #d1c7bd', paddingBottom: '14px' }}>
+            <h2 style={{ margin: '0 0 4px 0', fontSize: '1.4rem', fontWeight: '800', textTransform: 'uppercase', color: '#1c1512' }}>
+              {shop?.name || 'SMART CAFE'}
+            </h2>
+            <span style={{ fontSize: '0.85rem', color: '#706456', fontWeight: '600' }}>
+              Table T{selectedTable.table_number < 10 ? `0${selectedTable.table_number}` : selectedTable.table_number} Receipt
+            </span>
+          </div>
+
+          <div style={{ fontSize: '0.8rem', color: '#706456', display: 'flex', flexDirection: 'column', gap: '4px' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+              <span>Session ID</span>
+              <span style={{ fontWeight: '700', color: '#1c1512' }}>{latestOrder ? `S1-${latestOrder.order_number}` : '--'}</span>
+            </div>
+            <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+              <span>Date</span>
+              <span style={{ fontWeight: '700', color: '#1c1512' }}>{new Date().toLocaleDateString('en-US', { day: '2-digit', month: 'short', year: 'numeric' })}</span>
+            </div>
+            <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+              <span>Time</span>
+              <span style={{ fontWeight: '700', color: '#1c1512' }}>{new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })}</span>
+            </div>
+          </div>
+
+          <div style={{ borderTop: '1px solid #1c1512', borderBottom: '1px solid #1c1512', padding: '10px 0', margin: '4px 0' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.78rem', fontWeight: '800', textTransform: 'uppercase', color: '#706456', marginBottom: '8px' }}>
+              <span>Item description</span>
+              <span>Total</span>
+            </div>
+
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+              {selectedTableOrders.map(o => (
+                <React.Fragment key={o.id}>
+                  {o.order_items && o.order_items.map(item => (
+                    <div key={item.id} style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.82rem' }}>
+                      <span>{item.item_name} <span style={{ fontWeight: '700', color: '#ff6d00' }}>x{item.quantity}</span></span>
+                      <span style={{ fontWeight: '700' }}>₹{(item.price_at_time * item.quantity).toFixed(2)}</span>
+                    </div>
+                  ))}
+                </React.Fragment>
+              ))}
+            </div>
+          </div>
+
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', fontSize: '0.82rem', borderBottom: '1px dashed #d1c7bd', paddingBottom: '10px' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+              <span style={{ color: '#706456' }}>Subtotal</span>
+              <span style={{ fontWeight: '700' }}>₹{subtotal.toFixed(2)}</span>
+            </div>
+            <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+              <span style={{ color: '#706456' }}>Taxes & Charges (5% GST)</span>
+              <span style={{ fontWeight: '700' }}>₹{taxesAndCharges.toFixed(2)}</span>
+            </div>
+          </div>
+
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '4px 0' }}>
+            <span style={{ fontWeight: '800', fontSize: '0.95rem' }}>Grand Total</span>
+            <span style={{ fontWeight: '800', fontSize: '1.2rem', color: '#ff6d00' }}>₹{totalAmount.toFixed(2)}</span>
+          </div>
+
+          <div style={{ textAlign: 'center', marginTop: '14px', fontSize: '0.76rem', color: '#706456', fontStyle: 'italic' }}>
+            Thank you for dining with us!
+          </div>
+        </div>
+      )}
     </div>
   );
 };

@@ -83,6 +83,36 @@ async function runTests() {
       console.log('🔒 SECURITY PASS: No order items returned (access restricted).');
     }
   }
+  console.log('\n-----------------------------------------------\n');
+
+  // Test 4: Query categories anonymously
+  console.log('Test 4: Querying categories anonymously...');
+  const { data: categories, error: catsErr } = await supabase.from('categories').select('*');
+  if (catsErr) {
+    console.error('❌ Categories query failed:', catsErr.message);
+  } else {
+    console.log(`✅ Categories query succeeded. Found ${categories.length} categories.`);
+  }
+  console.log('\n-----------------------------------------------\n');
+
+  // Test 5: Query items anonymously
+  console.log('Test 5: Querying items anonymously...');
+  const { data: items, error: itmsErr } = await supabase.from('items').select('*');
+  if (itmsErr) {
+    console.error('❌ Items query failed:', itmsErr.message);
+  } else {
+    console.log(`✅ Items query succeeded. Found ${items.length} items.`);
+  }
+  console.log('\n-----------------------------------------------\n');
+
+  // Test 6: Query shop_tables anonymously
+  console.log('Test 6: Querying shop_tables anonymously...');
+  const { data: tables, error: tblsErr } = await supabase.from('shop_tables').select('*');
+  if (tblsErr) {
+    console.error('❌ Shop tables query failed:', tblsErr.message);
+  } else {
+    console.log(`✅ Shop tables query succeeded. Found ${tables.length} tables.`);
+  }
   console.log('\n================ TESTS COMPLETED ================\n');
 }
 
