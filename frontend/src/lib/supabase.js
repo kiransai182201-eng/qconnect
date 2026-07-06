@@ -778,15 +778,22 @@ if (typeof window !== 'undefined') {
   localStorage.removeItem('supabase_mock_mode');
 }
 
-// Mock mode ONLY activates during automated testing (headless) or if the URL explicitly has ?mock=true
+// Mock mode ONLY activates when EXPLICITLY requested via URL param or during automated headless testing.
+// NEVER activate mock mode just because env vars are missing — that silently breaks production!
 export const isMockMode = typeof window !== 'undefined' && (
   window.location.search.includes('mock=true') || 
   navigator.webdriver || 
   navigator.userAgent.includes('HeadlessChrome') ||
-  window.__testsprite_mock === true ||
-  !supabaseUrl ||
-  supabaseUrl.includes('placeholder-never-use')
+  window.__testsprite_mock === true
 );
+
+if (typeof window !== 'undefined') {
+  console.log('[Supabase Init]', {
+    mode: isMockMode ? 'MOCK' : 'REAL',
+    hasUrl: !!supabaseUrl,
+    hasKey: !!supabaseKey
+  });
+}
 
 export const supabase = isMockMode ? mockSupabase : realSupabase;
 
