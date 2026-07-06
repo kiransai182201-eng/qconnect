@@ -59,6 +59,9 @@ const MenuBuilder = () => {
   
   // Item Form Fields
   const [newItem, setNewItem] = useState({ name: '', price: '', description: '' });
+  const [imageFile, setImageFile] = useState(null);
+  const [imagePreview, setImagePreview] = useState('');
+  const [uploadingImage, setUploadingImage] = useState(false);
   const [prepTime, setPrepTime] = useState(10);
   const [dietType, setDietType] = useState('veg'); // veg, non-veg, spicy, gluten-free
   const [customizationOptions, setCustomizationOptions] = useState([]); // Legacy
@@ -213,41 +216,67 @@ const MenuBuilder = () => {
         (customizationOptions.length > 0 ? ` [CUSTOMIZATIONS: ${customizationOptions.join('; ')}]` : '');
 
       try {
-        let savedItemId = null;
-        if (editingItemId) {
-          // Update existing item
-          const { data, error } = await supabase.from('items').update({
-            name: newItem.name, 
-            price: parseFloat(newItem.price), 
-            description: descToSave,
-            is_available: isAvailable
-          }).eq('id', editingItemId).select();
+          // Upload image if selected
+          let uploadedImageUrl = null;
+          if (imageFile) {
+            setUploadingImage(true);
+            const fileExt = imageFile.name.split('.').pop();
+            const fileName = `items/${shop.id}/${Date.now()}-${Math.random().toString(36).substring(2)}.${fileExt}`;
+            
+            const { data: uploadData, error: uploadError } = await supabase.storage
+              .from('shop-logos')
+              .upload(fileName, imageFile, { cacheControl: '3600', upsert: false });
 
-          if (error) throw error;
-          if (data) {
-            setItems(items.map(item => item.id === editingItemId ? data[0] : item));
-            savedItemId = editingItemId;
-            // Clear old customizations for a full replacement
-            await supabase.from('item_customization_groups').delete().eq('item_id', savedItemId);
+            if (uploadError) {
+              console.error("Image upload failed:", uploadError);
+              alert("Image upload failed, continuing without image...");
+            } else if (uploadData) {
+              const { data: { publicUrl } } = supabase.storage
+                .from('shop-logos')
+                .getPublicUrl(fileName);
+              uploadedImageUrl = publicUrl;
+            }
+            setUploadingImage(false);
           }
-        } else {
-          // Insert new item
-          const { data, error } = await supabase.from('items').insert([
-            { 
+
+          if (editingItemId) {
+            // Update existing item
+            const updatePayload = {
+              name: newItem.name, 
+              price: parseFloat(newItem.price), 
+              description: descToSave,
+              is_available: isAvailable
+            };
+            if (uploadedImageUrl) updatePayload.image_url = uploadedImageUrl;
+
+            const { data, error } = await supabase.from('items').update(updatePayload).eq('id', editingItemId).select();
+
+            if (error) throw error;
+            if (data) {
+              setItems(items.map(item => item.id === editingItemId ? data[0] : item));
+              savedItemId = editingItemId;
+              // Clear old customizations for a full replacement
+              await supabase.from('item_customization_groups').delete().eq('item_id', savedItemId);
+            }
+          } else {
+            // Insert new item
+            const insertPayload = { 
               category_id: activeCategoryId, 
               name: newItem.name, 
               price: parseFloat(newItem.price), 
               description: descToSave,
               is_available: isAvailable
-            }
-          ]).select();
+            };
+            if (uploadedImageUrl) insertPayload.image_url = uploadedImageUrl;
 
-          if (error) throw error;
-          if (data) {
-            setItems([...items, data[0]]);
-            savedItemId = data[0].id;
+            const { data, error } = await supabase.from('items').insert([insertPayload]).select();
+
+            if (error) throw error;
+            if (data) {
+              setItems([...items, data[0]]);
+              savedItemId = data[0].id;
+            }
           }
-        }
 
         // Save V2 Customizations
         if (savedItemId && localCustomizationGroups.length > 0) {
@@ -314,6 +343,8 @@ const MenuBuilder = () => {
     setEditingItemId(item.id);
     const meta = parseMetadata(item.description);
     setNewItem({ name: item.name, price: item.price, description: meta.cleanDesc });
+    setImageFile(null);
+    setImagePreview(item.image_url || '');
     setPrepTime(meta.prep);
     setDietType(meta.diet);
     setCustomizationOptions(meta.customs);
@@ -414,6 +445,8 @@ const MenuBuilder = () => {
   const resetForm = () => {
     setEditingItemId(null);
     setNewItem({ name: '', price: '', description: '' });
+    setImageFile(null);
+    setImagePreview('');
     setPrepTime(10);
     setDietType('veg');
     setCustomizationOptions([]);
@@ -610,12 +643,30 @@ const MenuBuilder = () => {
               
               {/* Top section: Upload area on the left, Input fields on the right */}
               <div className="mb-form-top-row">
-                <div className="mb-upload-area">
-                  <div className="mb-upload-icon-circle">
-                    <Plus size={24} />
-                  </div>
-                  <span className="mb-upload-label">Click to Upload Image</span>
-                  <span style={{ fontSize: '0.68rem', color: 'var(--color-text-muted)', opacity: 0.5 }}>Image Upload</span>
+                <div className="mb-upload-area" onClick={() => document.getElementById('item-image-upload').click()}>
+                  <input 
+                    type="file" 
+                    id="item-image-upload" 
+                    hidden 
+                    accept="image/*"
+                    onChange={(e) => {
+                      if (e.target.files && e.target.files[0]) {
+                        setImageFile(e.target.files[0]);
+                        setImagePreview(URL.createObjectURL(e.target.files[0]));
+                      }
+                    }}
+                  />
+                  {imagePreview ? (
+                    <img src={imagePreview} alt="Preview" style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: '14px' }} />
+                  ) : (
+                    <>
+                      <div className="mb-upload-icon-circle">
+                        <Plus size={24} />
+                      </div>
+                      <span className="mb-upload-label" style={{ textAlign: 'center' }}>Click to Upload</span>
+                      <span style={{ fontSize: '0.68rem', color: 'var(--color-text-muted)', opacity: 0.5 }}>Image</span>
+                    </>
+                  )}
                 </div>
 
                 <div className="mb-form-top-fields">
@@ -802,8 +853,12 @@ const MenuBuilder = () => {
                     </button>
                   )}
                 </div>
-                <button type="submit" className="tables-btn-primary">
-                  {editingItemId ? 'Update Item' : '+ Add Item'}
+                <button 
+                  type="submit" 
+                  className="tables-btn-primary"
+                  disabled={uploadingImage}
+                >
+                  {uploadingImage ? 'Uploading...' : (editingItemId ? 'Update Item' : '+ Add Item')}
                 </button>
               </div>
 
