@@ -144,7 +144,8 @@ const ShopDetails = () => {
           address: address,
           tables: parseInt(tables, 10),
           logo_url: finalLogoUrl,
-          owner_unique_id: ownerUniqueId
+          owner_unique_id: ownerUniqueId,
+          status: 'published'
         }
       ]);
 

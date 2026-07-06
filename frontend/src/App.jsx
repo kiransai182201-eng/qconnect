@@ -86,6 +86,7 @@ function App() {
               <Route path="/login" element={<Login />} />
               <Route path="/shop-setup" element={<ShopDetails />} />
               <Route path="/menu/:shopId" element={<CustomerMenu />} />
+              <Route path="/menu" element={<CustomerMenu />} />
               <Route path="/receipt/:orderId" element={<ReceiptView />} />
               
               {/* Public Informational / Legal pages */}

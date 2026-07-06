@@ -48,14 +48,18 @@ const getIcon = (name, type = 'item') => {
 };
 
 const CustomerMenu = () => {
-  const { shopId } = useParams();
+  const { shopId: rawPathShopId } = useParams();
   const [searchParams] = useSearchParams();
   const { lang, setLang, t } = useLanguage();
+
+  const effectiveShopId = rawPathShopId || searchParams.get('shop') || searchParams.get('shopId') || searchParams.get('s');
+  const effectiveTableParam = searchParams.get('table') || searchParams.get('table_number') || searchParams.get('t');
 
   const [shop, setShop] = useState(null);
   const [categories, setCategories] = useState([]);
   const [items, setItems] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [errorDiagnostics, setErrorDiagnostics] = useState(null);
   
   const [searchQuery, setSearchQuery] = useState('');
   const [activeCategoryId, setActiveCategoryId] = useState('all');
@@ -68,9 +72,10 @@ const CustomerMenu = () => {
   const [manualTableNumber, setManualTableNumber] = useState('');
   
   // Cartesian persistence in localStorage (sanitized for new customizations object structure)
+  const cartKeyName = `cart_${effectiveShopId || 'default'}`;
   const [cart, setCart] = useState(() => {
     try {
-      const saved = localStorage.getItem(`cart_${shopId}`);
+      const saved = localStorage.getItem(cartKeyName);
       if (saved) {
         const parsed = JSON.parse(saved);
         const sanitized = {};
@@ -94,8 +99,10 @@ const CustomerMenu = () => {
   });
   
   useEffect(() => {
-    localStorage.setItem(`cart_${shopId}`, JSON.stringify(cart));
-  }, [cart, shopId]);
+    if (effectiveShopId) {
+      localStorage.setItem(`cart_${effectiveShopId}`, JSON.stringify(cart));
+    }
+  }, [cart, effectiveShopId]);
 
   const [activeItemForDetail, setActiveItemForDetail] = useState(null);
   const [isCartOpen, setIsCartOpen] = useState(false);
@@ -140,30 +147,90 @@ const CustomerMenu = () => {
 
   useEffect(() => {
     const fetchShopAndMenu = async () => {
+      setLoading(true);
+      setErrorDiagnostics(null);
+
+      if (!effectiveShopId) {
+        console.error('[QR Audit] No shop ID provided in URL parameters or route.');
+        setErrorDiagnostics('No restaurant identifier found in link. Please scan a valid QR code.');
+        setLoading(false);
+        return;
+      }
+
+      const cleanShopId = decodeURIComponent(effectiveShopId).trim();
       let currentShop = null;
 
-      if (isUUID(shopId)) {
-        // 1. Try to look up by table_token.
-        // Use maybeSingle() so a missing/RLS-hidden row returns null instead of a 406 error.
-        const { data: tableData } = await supabase.from('shop_tables').select('*, shops(*)').eq('table_token', shopId).maybeSingle();
-        if (tableData) {
-          if (!tableData.is_active) {
-            setIsTableDeactivated(true);
-            setLoading(false);
-            return;
+      try {
+        if (isUUID(cleanShopId)) {
+          // 1. Try to look up by table_token.
+          const { data: tableData, error: tableErr } = await supabase
+            .from('shop_tables')
+            .select('*, shops(*)')
+            .eq('table_token', cleanShopId)
+            .maybeSingle();
+
+          if (tableErr) console.warn('[QR Audit] table_token query error:', tableErr);
+
+          if (tableData) {
+            if (!tableData.is_active) {
+              setIsTableDeactivated(true);
+              setLoading(false);
+              return;
+            }
+            currentShop = tableData.shops;
+            setTableNumber(String(tableData.table_number));
+            setTableId(tableData.id);
+          } else {
+            // 2. If not a table token, try to look up as a shop_id directly
+            const { data: shopData, error: shopErr } = await supabase
+              .from('shops')
+              .select('*')
+              .eq('id', cleanShopId)
+              .maybeSingle();
+
+            if (shopErr) console.warn('[QR Audit] shop_id query error:', shopErr);
+
+            if (shopData) {
+              currentShop = shopData;
+            }
           }
-          currentShop = tableData.shops;
-          setTableNumber(String(tableData.table_number));
-          setTableId(tableData.id);
         } else {
-          // 2. If not a table token, try to look up as a shop_id directly
-          const { data: shopData } = await supabase.from('shops').select('*').eq('id', shopId).maybeSingle();
+          // 3. Look up by owner_unique_id (slug) case-insensitively using .ilike
+          const { data: shopData, error: shopErr } = await supabase
+            .from('shops')
+            .select('*')
+            .ilike('owner_unique_id', cleanShopId)
+            .maybeSingle();
+
+          if (shopErr) console.warn('[QR Audit] owner_unique_id query error:', shopErr);
+
           if (shopData) {
             currentShop = shopData;
-            const urlTable = searchParams.get('table');
-            if (urlTable) {
-              setTableNumber(urlTable);
-              const { data: maybeTable } = await supabase.from('shop_tables').select('*').eq('shop_id', currentShop.id).eq('table_number', parseInt(urlTable, 10)).maybeSingle();
+          } else {
+            // Fallback: exact match lookup
+            const { data: exactShop } = await supabase
+              .from('shops')
+              .select('*')
+              .eq('owner_unique_id', cleanShopId)
+              .maybeSingle();
+
+            if (exactShop) currentShop = exactShop;
+          }
+        }
+
+        if (currentShop) {
+          // Resolve table number from URL search param if not already set by table_token
+          if (effectiveTableParam) {
+            setTableNumber(effectiveTableParam);
+            const parsedNum = parseInt(effectiveTableParam, 10);
+            if (!isNaN(parsedNum)) {
+              const { data: maybeTable } = await supabase
+                .from('shop_tables')
+                .select('*')
+                .eq('shop_id', currentShop.id)
+                .eq('table_number', parsedNum)
+                .maybeSingle();
+
               if (maybeTable) {
                 if (!maybeTable.is_active) {
                   setIsTableDeactivated(true);
@@ -174,58 +241,43 @@ const CustomerMenu = () => {
               }
             }
           }
-        }
-      } else {
-        // 3. Look up by owner_unique_id (slug) case-insensitively
-        const { data: shopData } = await supabase.from('shops').select('*').eq('owner_unique_id', shopId).maybeSingle();
-        if (shopData) {
-          currentShop = shopData;
-          const urlTable = searchParams.get('table');
-          if (urlTable) {
-            setTableNumber(urlTable);
-            const { data: maybeTable } = await supabase.from('shop_tables').select('*').eq('shop_id', currentShop.id).eq('table_number', parseInt(urlTable, 10)).maybeSingle();
-            if (maybeTable) {
-              if (!maybeTable.is_active) {
-                setIsTableDeactivated(true);
-                setLoading(false);
-                return;
-              }
-              setTableId(maybeTable.id);
+
+          setShop(currentShop);
+          const [catsRes, itmsRes] = await Promise.all([
+            supabase.from('categories').select('*').eq('shop_id', currentShop.id),
+            supabase.from('items').select('*, categories!inner(shop_id)').eq('categories.shop_id', currentShop.id),
+            supabase.from('menu_views').insert([{ shop_id: currentShop.id }]).catch(() => null)
+          ]);
+
+          if (catsRes.data) setCategories(catsRes.data);
+          if (itmsRes.data) setItems(itmsRes.data);
+
+          // Sync last placed order status
+          const lastOrderId = localStorage.getItem(`last_order_id_${currentShop.id}`);
+          if (lastOrderId) {
+            const { data: order } = await supabase
+              .from('orders')
+              .select('*, order_items(*)')
+              .eq('id', lastOrderId)
+              .maybeSingle();
+
+            if (order && order.status !== 'delivered' && order.status !== 'rejected') {
+              setActiveOrder(order);
             }
           }
+        } else {
+          setErrorDiagnostics(`Menu for "${cleanShopId}" is currently unavailable or invalid link.`);
         }
+      } catch (err) {
+        console.error('[QR Audit] Unexpected error fetching menu:', err);
+        setErrorDiagnostics(err.message || 'Failed to fetch menu data.');
+      } finally {
+        setLoading(false);
       }
-
-      if (currentShop) {
-        setShop(currentShop);
-        const [catsRes, itmsRes] = await Promise.all([
-          supabase.from('categories').select('*').eq('shop_id', currentShop.id),
-          supabase.from('items').select('*, categories!inner(shop_id)').eq('categories.shop_id', currentShop.id),
-          supabase.from('menu_views').insert([{ shop_id: currentShop.id }])
-        ]);
-
-        if (catsRes.data) setCategories(catsRes.data);
-        if (itmsRes.data) setItems(itmsRes.data);
-
-        // Sync last placed order status
-        const lastOrderId = localStorage.getItem(`last_order_id_${currentShop.id}`);
-        if (lastOrderId) {
-          const { data: order } = await supabase
-            .from('orders')
-            .select('*, order_items(*)')
-            .eq('id', lastOrderId)
-            .maybeSingle();
-          
-          if (order && order.status !== 'delivered' && order.status !== 'rejected') {
-            setActiveOrder(order);
-          }
-        }
-      }
-      setLoading(false);
     };
 
     fetchShopAndMenu();
-  }, [shopId, searchParams]);
+  }, [rawPathShopId, searchParams, effectiveShopId, effectiveTableParam]);
 
   // Realtime Subscriptions
   useEffect(() => {
@@ -601,8 +653,20 @@ const CustomerMenu = () => {
 
   if (!shop) {
     return (
-      <div style={{ minHeight: '100vh', display: 'flex', justifyContent: 'center', alignItems: 'center', backgroundColor: isDarkMode ? '#0f172a' : '#fdfbf7', color: isDarkMode ? '#f8fafc' : '#1a1a1a' }}>
-        <p>Menu unavailable or invalid link.</p>
+      <div style={{ minHeight: '100vh', display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center', backgroundColor: isDarkMode ? '#0f172a' : '#fdfbf7', color: isDarkMode ? '#f8fafc' : '#1a1a1a', padding: '2rem', textAlign: 'center' }}>
+        <div style={{ width: '70px', height: '70px', borderRadius: '50%', backgroundColor: 'rgba(239, 68, 68, 0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: '1.25rem' }}>
+          <AlertTriangle size={36} color="#ef4444" />
+        </div>
+        <h2 style={{ fontSize: '1.5rem', fontWeight: '800', marginBottom: '0.75rem' }}>Menu Unavailable</h2>
+        <p style={{ color: isDarkMode ? '#94a3b8' : '#64748b', maxWidth: '400px', fontSize: '0.95rem', lineHeight: '1.5', marginBottom: '1.5rem' }}>
+          {errorDiagnostics || 'Menu unavailable or invalid link.'}
+        </p>
+        <button 
+          onClick={() => window.location.reload()} 
+          style={{ padding: '0.75rem 1.75rem', backgroundColor: 'var(--color-primary, #ff6d00)', color: '#fff', border: 'none', borderRadius: '30px', fontWeight: '700', cursor: 'pointer', fontSize: '0.9rem' }}
+        >
+          Retry Loading
+        </button>
       </div>
     );
   }
