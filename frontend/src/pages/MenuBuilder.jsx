@@ -18,15 +18,82 @@ import { supabase } from '../lib/supabase';
 import '../menu-builder.css';
 import { useLanguage } from '../contexts/LanguageContext';
 
-const DEFAULT_CATEGORIES = [
-  '🍽️ Starters',
-  '🍲 Main Course',
-  '🍚 Rice & Biryani',
-  '🍞 Breads',
-  '🥤 Drinks',
-  '🍰 Desserts',
-  '🎉 Combos'
-];
+const RESTAURANT_PRESETS = {
+  'Restaurant': [
+    '🍽️ Starters',
+    '🍲 Main Course',
+    '🍚 Rice & Biryani',
+    '🍞 Breads',
+    '🥤 Drinks',
+    '🍰 Desserts',
+    '🎉 Combos'
+  ],
+  'Cafe': [
+    '☕ Coffee',
+    '🫖 Tea',
+    '🍰 Desserts',
+    '🥤 Beverages',
+    '🥪 Snacks & Sandwiches'
+  ],
+  'Fast Food': [
+    '🍔 Burgers',
+    '🍕 Pizza',
+    '🍟 Fries & Sides',
+    '🥤 Soft Drinks',
+    '🌮 Wraps & Rolls'
+  ],
+  'Bakery': [
+    '🎂 Cakes',
+    '🥐 Pastries',
+    '🧁 Cupcakes',
+    '🍞 Breads',
+    '☕ Coffee & Tea'
+  ],
+  'Juice Shop': [
+    '🧃 Fresh Juices',
+    '🥤 Smoothies',
+    '🧋 Milkshakes',
+    '🍧 Mocktails'
+  ],
+  'Cloud Kitchen': [
+    '🍽️ Starters',
+    '🍲 Main Course',
+    '🍚 Rice & Biryani',
+    '🍞 Breads',
+    '🥤 Drinks',
+    '🍰 Desserts',
+    '🎉 Combos'
+  ]
+};
+
+const DEFAULT_CATEGORIES = RESTAURANT_PRESETS['Restaurant'];
+
+const getCategoryType = (categoryName) => {
+  if (!categoryName) return 'food';
+  const lower = categoryName.toLowerCase();
+  if (
+    lower.includes('drink') || 
+    lower.includes('beverage') || 
+    lower.includes('tea') || 
+    lower.includes('coffee') || 
+    lower.includes('juice') || 
+    lower.includes('smoothie') || 
+    lower.includes('mocktail')
+  ) {
+    return 'drinks';
+  }
+  if (
+    lower.includes('dessert') || 
+    lower.includes('cake') || 
+    lower.includes('pastry') || 
+    lower.includes('sweet') || 
+    lower.includes('ice cream') ||
+    lower.includes('bakery')
+  ) {
+    return 'desserts';
+  }
+  return 'food';
+};
 
 const MenuBuilder = () => {
   const navigate = useNavigate();
@@ -40,6 +107,7 @@ const MenuBuilder = () => {
   const [published, setPublished] = useState(false);
 
   const [activeCategoryId, setActiveCategoryId] = useState(null);
+  const [selectedPresetType, setSelectedPresetType] = useState('Restaurant');
   
   // Item Form Fields
   const [newItem, setNewItem] = useState({ name: '', price: '', description: '' });
@@ -541,9 +609,36 @@ const MenuBuilder = () => {
             {/* Load Default Categories (shown when empty) */}
             {categories.length === 0 && (
               <div style={{ padding: '1rem', borderRadius: '12px', border: '1px dashed var(--color-accent)', background: 'rgba(255,109,0,0.05)', marginBottom: '0.75rem' }}>
-                <p style={{ fontSize: '0.85rem', fontWeight: 600, color: 'var(--color-accent)', marginBottom: '0.75rem', textAlign: 'center' }}>Quick Start: Select Default Categories</p>
+                <p style={{ fontSize: '0.85rem', fontWeight: 600, color: 'var(--color-accent)', marginBottom: '0.5rem', textAlign: 'center' }}>Quick Start: Select Preset Categories</p>
+                
+                {/* Restaurant Type Selector */}
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px', marginBottom: '0.75rem', justifyContent: 'center' }}>
+                  {Object.keys(RESTAURANT_PRESETS).map(type => (
+                    <button
+                      key={type}
+                      type="button"
+                      onClick={() => {
+                        setSelectedPresetType(type);
+                        setSelectedDefaults(new Set(RESTAURANT_PRESETS[type]));
+                      }}
+                      style={{
+                        padding: '4px 8px',
+                        fontSize: '0.7rem',
+                        borderRadius: '6px',
+                        border: selectedPresetType === type ? '1px solid var(--color-accent)' : '1px solid var(--glass-border)',
+                        background: selectedPresetType === type ? 'var(--color-accent)' : 'transparent',
+                        color: selectedPresetType === type ? '#fff' : 'var(--color-text-muted)',
+                        cursor: 'pointer',
+                        fontWeight: selectedPresetType === type ? 600 : 400
+                      }}
+                    >
+                      {type}
+                    </button>
+                  ))}
+                </div>
+
                 <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px', marginBottom: '0.75rem', maxHeight: '260px', overflowY: 'auto' }}>
-                  {DEFAULT_CATEGORIES.map(cat => (
+                  {(RESTAURANT_PRESETS[selectedPresetType] || DEFAULT_CATEGORIES).map(cat => (
                     <button
                       key={cat}
                       type="button"
@@ -568,12 +663,13 @@ const MenuBuilder = () => {
                   <button
                     type="button"
                     onClick={() => {
-                      if (selectedDefaults.size === DEFAULT_CATEGORIES.length) setSelectedDefaults(new Set());
-                      else setSelectedDefaults(new Set(DEFAULT_CATEGORIES));
+                      const currentList = RESTAURANT_PRESETS[selectedPresetType] || DEFAULT_CATEGORIES;
+                      if (selectedDefaults.size === currentList.length) setSelectedDefaults(new Set());
+                      else setSelectedDefaults(new Set(currentList));
                     }}
                     style={{ flex: 1, padding: '8px', fontSize: '0.75rem', borderRadius: '8px', border: '1px solid var(--glass-border)', background: 'transparent', color: 'var(--color-text-muted)', cursor: 'pointer' }}
                   >
-                    {selectedDefaults.size === DEFAULT_CATEGORIES.length ? 'Deselect All' : 'Select All'}
+                    {selectedDefaults.size === (RESTAURANT_PRESETS[selectedPresetType] || DEFAULT_CATEGORIES).length ? 'Deselect All' : 'Select All'}
                   </button>
                   <button
                     type="button"
@@ -721,26 +817,143 @@ const MenuBuilder = () => {
                 </div>
               </div>
 
-              {/* Dietary Tags Selector Row */}
-              <div className="mb-form-group" style={{ marginBottom: '20px' }}>
-                <label>Dietary Tag</label>
-                <div className="mb-dietary-selector">
-                  {['veg', 'non-veg', 'vegan', 'gluten-free', 'spicy'].map(tag => (
-                    <button
-                      key={tag}
-                      type="button"
-                      className={`mb-dietary-pill ${dietType === tag ? 'active' : ''}`}
-                      onClick={() => setDietType(tag)}
-                    >
-                      {tag === 'veg' && '🟢 Veg'}
-                      {tag === 'non-veg' && '🔴 Non-Veg'}
-                      {tag === 'vegan' && '🌱 Vegan'}
-                      {tag === 'gluten-free' && '🌾 Gluten-Free'}
-                      {tag === 'spicy' && '🔥 Spicy'}
-                    </button>
-                  ))}
-                </div>
-              </div>
+              {/* Dynamic Attribute & Tag Groups based on Active Category */}
+              {(() => {
+                const catType = getCategoryType(activeCategory?.name);
+                const selectedTags = dietType ? dietType.split(',').map(s => s.trim()) : [];
+                
+                const toggleTag = (tagKey) => {
+                  if (selectedTags.includes(tagKey)) {
+                    const next = selectedTags.filter(t => t !== tagKey);
+                    setDietType(next.join(', '));
+                  } else {
+                    const next = [...selectedTags, tagKey];
+                    setDietType(next.join(', '));
+                  }
+                };
+
+                return (
+                  <div style={{ marginBottom: '20px', display: 'flex', flexDirection: 'column', gap: '16px' }}>
+                    {catType === 'food' && (
+                      <>
+                        <div className="mb-form-group">
+                          <label style={{ fontSize: '0.85rem', fontWeight: 600, color: 'var(--color-text-main)' }}>Dietary Attributes</label>
+                          <div className="mb-dietary-selector">
+                            {[
+                              { key: 'veg', label: '🟢 Veg' },
+                              { key: 'non-veg', label: '🔴 Non-Veg' },
+                              { key: 'egg', label: '🥚 Egg' },
+                              { key: 'vegan', label: '🌱 Vegan' },
+                              { key: 'jain', label: '🙏 Jain' },
+                              { key: 'gluten-free', label: '🌾 Gluten-Free' }
+                            ].map(({ key, label }) => (
+                              <button
+                                key={key}
+                                type="button"
+                                className={`mb-dietary-pill ${selectedTags.includes(key) ? 'active' : ''}`}
+                                onClick={() => toggleTag(key)}
+                              >
+                                {label}
+                              </button>
+                            ))}
+                          </div>
+                        </div>
+
+                        <div className="mb-form-group">
+                          <label style={{ fontSize: '0.85rem', fontWeight: 600, color: 'var(--color-text-main)' }}>Spice Level</label>
+                          <div className="mb-dietary-selector">
+                            {[
+                              { key: 'mild', label: '🌶️ Mild' },
+                              { key: 'medium', label: '🌶️🌶️ Medium' },
+                              { key: 'spicy', label: '🔥 Spicy' },
+                              { key: 'extra-spicy', label: '💥 Extra Spicy' }
+                            ].map(({ key, label }) => (
+                              <button
+                                key={key}
+                                type="button"
+                                className={`mb-dietary-pill ${selectedTags.includes(key) ? 'active' : ''}`}
+                                onClick={() => toggleTag(key)}
+                              >
+                                {label}
+                              </button>
+                            ))}
+                          </div>
+                        </div>
+                      </>
+                    )}
+
+                    {catType === 'drinks' && (
+                      <>
+                        <div className="mb-form-group">
+                          <label style={{ fontSize: '0.85rem', fontWeight: 600, color: 'var(--color-text-main)' }}>Temperature</label>
+                          <div className="mb-dietary-selector">
+                            {[
+                              { key: 'hot', label: '☕ Hot' },
+                              { key: 'cold', label: '🧊 Cold' }
+                            ].map(({ key, label }) => (
+                              <button
+                                key={key}
+                                type="button"
+                                className={`mb-dietary-pill ${selectedTags.includes(key) ? 'active' : ''}`}
+                                onClick={() => toggleTag(key)}
+                              >
+                                {label}
+                              </button>
+                            ))}
+                          </div>
+                        </div>
+
+                        <div className="mb-form-group">
+                          <label style={{ fontSize: '0.85rem', fontWeight: 600, color: 'var(--color-text-main)' }}>Drink Type</label>
+                          <div className="mb-dietary-selector">
+                            {[
+                              { key: 'coffee', label: '☕ Coffee' },
+                              { key: 'tea', label: '🫖 Tea' },
+                              { key: 'juice', label: '🧃 Juice' },
+                              { key: 'milkshake', label: '🥤 Milkshake' },
+                              { key: 'mocktail', label: '🍹 Mocktail' },
+                              { key: 'soft-drink', label: '🥤 Soft Drink' }
+                            ].map(({ key, label }) => (
+                              <button
+                                key={key}
+                                type="button"
+                                className={`mb-dietary-pill ${selectedTags.includes(key) ? 'active' : ''}`}
+                                onClick={() => toggleTag(key)}
+                              >
+                                {label}
+                              </button>
+                            ))}
+                          </div>
+                        </div>
+                      </>
+                    )}
+
+                    {catType === 'desserts' && (
+                      <div className="mb-form-group">
+                        <label style={{ fontSize: '0.85rem', fontWeight: 600, color: 'var(--color-text-main)' }}>Dessert Type & Attributes</label>
+                        <div className="mb-dietary-selector">
+                          {[
+                            { key: 'eggless', label: '🟢 Eggless' },
+                            { key: 'contains-egg', label: '🥚 Contains Egg' },
+                            { key: 'ice-cream', label: '🍨 Ice Cream' },
+                            { key: 'frozen', label: '❄️ Frozen' },
+                            { key: 'served-hot', label: '🔥 Served Hot' }
+                          ].map(({ key, label }) => (
+                            <button
+                              key={key}
+                              type="button"
+                              className={`mb-dietary-pill ${selectedTags.includes(key) ? 'active' : ''}`}
+                              onClick={() => toggleTag(key)}
+                            >
+                              {label}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                );
+              })()}
 
               {/* V2 Customizations Section */}
               <div className="mb-customizations-card" style={{ padding: '20px', background: 'var(--color-surface)', borderRadius: '12px', border: '1px solid var(--glass-border)', marginTop: '24px' }}>
