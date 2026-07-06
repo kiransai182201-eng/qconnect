@@ -155,8 +155,7 @@ const Cart = ({
                     const item = items.find(i => i.id === cartItem.itemId);
                     if (!item) return null;
                     
-                    const addonsTotal = cartItem.customizations?.addons?.reduce((sum, a) => sum + parseFloat(a.price), 0) || 0;
-                    const singlePrice = parseFloat(item.price) + addonsTotal;
+                    const singlePrice = cartItem.unitTotal || parseFloat(item.price);
                     const subtotal = singlePrice * cartItem.quantity;
 
                     return (
@@ -175,20 +174,13 @@ const Cart = ({
                             ₹{singlePrice.toFixed(2)}
                           </p>
                           
-                          {cartItem.customizations && (
+                          {cartItem.customizations && cartItem.customizations.length > 0 && (
                             <div style={{ fontSize: '0.7rem', color: 'var(--text-secondary)', marginTop: '4px', display: 'flex', flexDirection: 'column', gap: '2px' }}>
-                              {cartItem.customizations.spiceLevel && (
-                                <span style={{ fontWeight: '500' }}>🌶️ Spice: {cartItem.customizations.spiceLevel}</span>
-                              )}
-                              {cartItem.customizations.sweetnessLevel && (
-                                <span style={{ fontWeight: '500' }}>🍭 Sweetness: {cartItem.customizations.sweetnessLevel}</span>
-                              )}
-                              {cartItem.customizations.addons && cartItem.customizations.addons.length > 0 && (
-                                <span style={{ fontWeight: '500' }}>➕ Add-ons: {cartItem.customizations.addons.map(a => a.name).join(', ')}</span>
-                              )}
-                              {cartItem.customizations.specialInstructions && (
-                                <span style={{ fontStyle: 'italic', color: 'var(--color-accent)' }}>📝 "{cartItem.customizations.specialInstructions}"</span>
-                              )}
+                              {cartItem.customizations.map((c, i) => (
+                                <span key={i} style={{ fontWeight: '500' }}>
+                                  • {c.groupName}: {c.optionName || c.text} {c.priceValue > 0 ? `(+₹${c.priceValue.toFixed(2)})` : ''}
+                                </span>
+                              ))}
                             </div>
                           )}
                         </div>
