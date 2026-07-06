@@ -773,20 +773,19 @@ const mockSupabase = {
   }
 };
 
-// Mock mode is evaluated on the fly via URL, but we NO LONGER persist it permanently to localStorage 
-// just because a URL parameter is present, as this corrupts production deployments.
+// Force clear any poisoned persistent mock mode flags from older sessions
+if (typeof window !== 'undefined') {
+  localStorage.removeItem('supabase_mock_mode');
+}
+
+// Mock mode ONLY activates during automated testing (headless) or if the URL explicitly has ?mock=true
 export const isMockMode = typeof window !== 'undefined' && (
-  localStorage.getItem('supabase_mock_mode') === 'true' ||
-  (
-    localStorage.getItem('supabase_mock_mode') !== 'false' && (
-      window.location.search.includes('mock=true') || 
-      navigator.webdriver || 
-      navigator.userAgent.includes('HeadlessChrome') ||
-      window.__testsprite_mock === true ||
-      !supabaseUrl ||
-      supabaseUrl.includes('placeholder-never-use')
-    )
-  )
+  window.location.search.includes('mock=true') || 
+  navigator.webdriver || 
+  navigator.userAgent.includes('HeadlessChrome') ||
+  window.__testsprite_mock === true ||
+  !supabaseUrl ||
+  supabaseUrl.includes('placeholder-never-use')
 );
 
 export const supabase = isMockMode ? mockSupabase : realSupabase;
