@@ -22,6 +22,35 @@ const QRCodeGeneration = () => {
   const [downloadingPDF, setDownloadingPDF] = useState(false);
   const [successToast, setSuccessToast] = useState(false);
 
+  const getEffectiveBaseUrl = () => {
+    const configuredAppUrl = import.meta.env.VITE_APP_URL;
+    if (configuredAppUrl && !configuredAppUrl.includes('localhost')) {
+      return configuredAppUrl.replace(/\/$/, '');
+    }
+    return window.location.origin;
+  };
+
+  const getEffectiveQrUrl = (table) => {
+    if (!table) return '';
+    const targetBase = getEffectiveBaseUrl();
+    const slug = shop?.owner_unique_id || shop?.id;
+    let url = table.qr_url;
+
+    if (!url) {
+      return `${targetBase}/menu/${slug}?table=${table.table_number}`;
+    }
+
+    if ((url.includes('localhost') || url.includes('127.0.0.1')) && !targetBase.includes('localhost')) {
+      try {
+        const parsed = new URL(url);
+        return `${targetBase}${parsed.pathname}${parsed.search}`;
+      } catch {
+        return `${targetBase}/menu/${slug}?table=${table.table_number}`;
+      }
+    }
+    return url;
+  };
+
   // Fetch tables on mount
   useEffect(() => {
     if (!shop?.id) return;
@@ -81,7 +110,7 @@ const QRCodeGeneration = () => {
           : 0;
 
         const newTables = [];
-        const baseUrl = window.location.origin;
+        const baseUrl = getEffectiveBaseUrl();
         const tablesToAdd = targetCount - currentCount;
 
         for (let i = 1; i <= tablesToAdd; i++) {
@@ -201,7 +230,7 @@ const QRCodeGeneration = () => {
       const nextTableNum = maxTableNumber + 1;
       const tableToken = crypto.randomUUID();
       const tableCode = `${shop.owner_unique_id}_table_${nextTableNum}`;
-      const baseUrl = window.location.origin;
+      const baseUrl = getEffectiveBaseUrl();
       const qrUrl = `${baseUrl}/menu/${shop.owner_unique_id || shop.id}?table=${nextTableNum}`;
 
       const { data: newTable, error: insertError } = await supabase
@@ -282,18 +311,19 @@ const QRCodeGeneration = () => {
 
   // Share or copy link for a single table QR
   const shareSingleQR = async (table) => {
+    const effectiveUrl = getEffectiveQrUrl(table);
     if (navigator.share) {
       try {
         await navigator.share({
           title: `Table ${table.table_number} QR Code`,
           text: `Scan this to view the menu for ${shop?.name} - Table ${table.table_number}`,
-          url: table.qr_url,
+          url: effectiveUrl,
         });
       } catch (err) {
         console.error('Error sharing:', err);
       }
     } else {
-      navigator.clipboard.writeText(table.qr_url);
+      navigator.clipboard.writeText(effectiveUrl);
       alert('Table QR URL copied to clipboard!');
     }
   };
@@ -524,7 +554,7 @@ const QRCodeGeneration = () => {
                 {/* Standard canvas element for downloads and PDF rendering */}
                 <QRCodeCanvas 
                   id={`qr-canvas-${table.table_number}`} 
-                  value={table.qr_url} 
+                  value={getEffectiveQrUrl(table)} 
                   size={150} 
                   level="H" 
                   includeMargin={false}
