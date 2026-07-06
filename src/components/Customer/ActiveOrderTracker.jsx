@@ -18,7 +18,7 @@ const formatTime = (dateStr, addMinutes = 0) => {
   }
 };
 
-const ActiveOrderTracker = ({ activeOrder, setActiveOrder, isDarkMode }) => {
+const ActiveOrderTracker = ({ activeOrder, setActiveOrder, isDarkMode, embedded }) => {
   if (!activeOrder) return null;
 
   const statusMap = {
@@ -101,7 +101,7 @@ const ActiveOrderTracker = ({ activeOrder, setActiveOrder, isDarkMode }) => {
   };
 
   return (
-    <div className={`customer-page-wrapper ${isDarkMode ? 'customer-dark-mode' : ''}`} style={{ 
+    <div className={embedded ? "" : `customer-page-wrapper ${isDarkMode ? 'customer-dark-mode' : ''}`} style={embedded ? { display: 'flex', flexDirection: 'column', alignItems: 'center', width: '100%', padding: '2.5rem 1.25rem 5rem 1.25rem' } : { 
       minHeight: '100vh', 
       padding: '2.5rem 1.25rem', 
       display: 'flex', 
@@ -252,26 +252,27 @@ const ActiveOrderTracker = ({ activeOrder, setActiveOrder, isDarkMode }) => {
         </button>
       </div>
 
-      {/* Back button below card */}
-      <button 
-        onClick={() => setActiveOrder(null)} 
-        style={{ 
-          marginTop: '2rem', 
-          padding: '0.75rem 1.5rem', 
-          borderRadius: '12px', 
-          border: '1px solid var(--pill-border)', 
-          backgroundColor: 'var(--card-bg)', 
-          color: 'var(--text-secondary)', 
-          fontWeight: '600', 
-          cursor: 'pointer', 
-          transition: 'all 0.2s',
-          fontSize: '0.88rem'
-        }}
-        onMouseEnter={(e) => e.currentTarget.style.color = 'var(--text-primary)'}
-        onMouseLeave={(e) => e.currentTarget.style.color = 'var(--text-secondary)'}
-      >
-        Back to Menu
-      </button>
+      {!embedded && (
+        <button 
+          onClick={() => setActiveOrder(null)} 
+          style={{ 
+            marginTop: '2rem', 
+            padding: '0.75rem 1.5rem', 
+            borderRadius: '12px', 
+            border: '1px solid var(--pill-border)', 
+            backgroundColor: 'var(--card-bg)', 
+            color: 'var(--text-secondary)', 
+            fontWeight: '600', 
+            cursor: 'pointer', 
+            transition: 'all 0.2s',
+            fontSize: '0.88rem'
+          }}
+          onMouseEnter={(e) => e.currentTarget.style.color = 'var(--text-primary)'}
+          onMouseLeave={(e) => e.currentTarget.style.color = 'var(--text-secondary)'}
+        >
+          Back to Menu
+        </button>
+      )}
     </div>
   );
 };

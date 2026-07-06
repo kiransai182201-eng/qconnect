@@ -1,0 +1,276 @@
+/* History Redesign Page Styles */
+
+.hist-container {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  padding: 12px 0 40px 0;
+  width: 100%;
+}
+
+.hist-header-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 8px;
+}
+
+.hist-header-title {
+  font-family: var(--font-heading);
+  font-size: 1.8rem;
+  font-weight: 800;
+  color: var(--color-text-main);
+  margin: 0;
+}
+
+.hist-back-btn {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  background-color: var(--color-surface);
+  border: 1px solid var(--glass-border);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--color-text-main);
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.hist-back-btn:hover {
+  border-color: var(--color-accent);
+  color: var(--color-accent);
+}
+
+/* Filter Row */
+.hist-filter-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  background-color: var(--color-surface);
+  border: 1px solid var(--glass-border);
+  border-radius: 12px;
+  padding: 10px 16px;
+  gap: 16px;
+}
+
+.hist-date-input-wrapper {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex: 1;
+}
+
+.hist-datepicker {
+  background: transparent;
+  border: none;
+  color: var(--color-text-main);
+  font-size: 0.88rem;
+  outline: none;
+  font-family: var(--font-body);
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.hist-btn-clear {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  background: none;
+  border: none;
+  color: var(--color-accent);
+  font-size: 0.8rem;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.hist-btn-clear:hover {
+  opacity: 0.8;
+}
+
+/* Month Section Container */
+.hist-month-card {
+  background-color: var(--color-surface);
+  border: 1px solid var(--glass-border);
+  border-radius: 16px;
+  overflow: hidden;
+  box-shadow: 0 4px 10px rgba(0,0,0,0.15);
+}
+
+.hist-month-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 14px 20px;
+  background-color: rgba(255, 255, 255, 0.005);
+  border-bottom: 1px solid var(--glass-border);
+  cursor: pointer;
+}
+
+.hist-month-title {
+  font-size: 0.88rem;
+  font-weight: 800;
+  color: var(--color-text-muted);
+}
+
+.hist-month-total {
+  font-size: 0.88rem;
+  font-weight: 800;
+  color: #10b981;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+/* Transaction List Group */
+.hist-list {
+  display: flex;
+  flex-direction: column;
+}
+
+/* Transaction Item Row */
+.hist-item-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 18px 20px;
+  border-bottom: 1px solid var(--glass-border);
+  transition: all 0.2s ease;
+  cursor: pointer;
+}
+
+.hist-item-row:last-child {
+  border-bottom: none;
+}
+
+.hist-item-row:hover {
+  background-color: rgba(255, 255, 255, 0.01);
+}
+
+.hist-item-left {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+
+.hist-item-icon-box {
+  width: 40px;
+  height: 40px;
+  border-radius: 10px;
+  background-color: rgba(255, 255, 255, 0.03);
+  border: 1px solid var(--glass-border);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--color-text-muted);
+}
+
+.hist-item-details {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.hist-item-subtext {
+  font-size: 0.72rem;
+  color: var(--color-text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.hist-item-name-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.hist-item-name {
+  font-size: 0.95rem;
+  font-weight: 800;
+  color: var(--color-text-main);
+}
+
+.hist-status-badge {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 4px;
+  font-size: 0.65rem;
+  font-weight: 800;
+}
+
+.hist-status-badge.rejected {
+  background-color: rgba(239, 68, 68, 0.1);
+  color: #ef4444;
+}
+
+.hist-status-badge.delivered {
+  background-color: rgba(16, 185, 129, 0.1);
+  color: #10b981;
+}
+
+.hist-item-time {
+  font-size: 0.78rem;
+  color: var(--color-text-muted);
+}
+
+.hist-item-amount {
+  font-size: 1rem;
+  font-weight: 800;
+}
+
+.hist-item-amount.inflow {
+  color: #10b981;
+}
+
+.hist-item-amount.outflow {
+  color: #ef4444;
+}
+
+/* Expanded Bill Details Panel */
+.hist-expanded-details {
+  background-color: rgba(255, 255, 255, 0.005);
+  border-top: 1px dashed var(--glass-border);
+  padding: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.hist-details-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 0.85rem;
+}
+
+.hist-details-label {
+  color: var(--color-text-muted);
+}
+
+.hist-details-value {
+  color: var(--color-text-main);
+  font-weight: 700;
+}
+
+.hist-items-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  border-top: 1px solid var(--glass-border);
+  border-bottom: 1px solid var(--glass-border);
+  padding: 10px 0;
+  margin: 4px 0;
+}
+
+.hist-item-subrow {
+  display: flex;
+  justify-content: space-between;
+  font-size: 0.82rem;
+  color: var(--color-text-main);
+}
+
+.hist-details-actions {
+  display: flex;
+  gap: 12px;
+  margin-top: 6px;
+}

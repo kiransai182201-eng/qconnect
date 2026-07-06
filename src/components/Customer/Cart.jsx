@@ -1,5 +1,12 @@
 import React from 'react';
-import { ShoppingBag, X, AlertTriangle } from 'lucide-react';
+import { ShoppingBag, X, AlertTriangle, Clock } from 'lucide-react';
+
+const getStablePrepTime = (id) => {
+  if (!id) return 12;
+  let sum = 0;
+  for (let i = 0; i < id.length; i++) sum += id.charCodeAt(i);
+  return (sum % 15) + 10; // between 10 and 24 mins
+};
 
 const Cart = ({ 
   cart, 
@@ -34,34 +41,7 @@ const Cart = ({
 
   return (
     <>
-      {/* Bottom Screen Cart Banner */}
-      {getCartItemCount() > 0 && !isCartOpen && (
-        <div 
-          id="view-cart-bar-btn"
-          className="customer-bottom-cart-bar" 
-          onClick={() => setIsCartOpen(true)} 
-          aria-label="View Cart"
-        >
-          <div className="customer-cart-info-left">
-            <div className="customer-cart-icon-circle">
-              <ShoppingBag size={18} />
-              <span className="customer-cart-badge-count" data-count={getCartItemCount()}></span>
-            </div>
-            <div>
-              <div className="customer-cart-text-main">
-                {getCartItemCount()} {getCartItemCount() === 1 ? 'ITEM' : 'ITEMS'} | ₹{getCartTotal()}
-              </div>
-              <div className="customer-cart-text-sub">
-                You save ₹{mockSavings} on this order
-              </div>
-            </div>
-          </div>
-          <button className="customer-cart-btn-right">
-            View Cart
-            <span style={{ fontSize: '1rem', fontWeight: 'bold' }}>›</span>
-          </button>
-        </div>
-      )}
+      {/* Bottom Screen Cart Banner removed in favor of premium bottom navigation bar */}
 
       {/* Cart Drawer Modal */}
       {isCartOpen && (
@@ -92,22 +72,24 @@ const Cart = ({
             
             {/* Cart Drawer Header */}
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.25rem' }}>
-              <h2 style={{ margin: 0, fontSize: '1.45rem', fontWeight: '800', fontFamily: 'var(--font-heading)', color: 'var(--text-primary)' }}>Your Cart</h2>
+              <h2 style={{ margin: 0, fontSize: '1.45rem', fontWeight: '800', fontFamily: 'var(--font-heading)', color: 'var(--text-primary)' }}>Your order</h2>
               <div style={{ display: 'flex', alignItems: 'center', gap: '1.25rem' }}>
-                <button 
-                  onClick={clearCart}
-                  style={{
-                    background: 'none',
-                    border: 'none',
-                    color: 'var(--color-accent)',
-                    fontWeight: '700',
-                    fontSize: '0.85rem',
-                    cursor: 'pointer',
-                    padding: '4px'
-                  }}
-                >
-                  Clear
-                </button>
+                {getCartItemCount() > 0 && (
+                  <button 
+                    onClick={clearCart}
+                    style={{
+                      background: 'none',
+                      border: 'none',
+                      color: 'var(--color-accent)',
+                      fontWeight: '700',
+                      fontSize: '0.85rem',
+                      cursor: 'pointer',
+                      padding: '4px'
+                    }}
+                  >
+                    Clear
+                  </button>
+                )}
                 <button 
                   onClick={() => setIsCartOpen(false)} 
                   style={{ 
@@ -129,16 +111,42 @@ const Cart = ({
               </div>
             </div>
             
-            <div style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', marginBottom: '1.5rem', fontWeight: '600' }}>
-              {getCartItemCount()} {getCartItemCount() === 1 ? 'Item' : 'Items'}
+            {/* Estimated Prep Time */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.85rem', color: 'var(--text-secondary)', marginBottom: '1.5rem', fontWeight: '600' }}>
+              <Clock size={16} color="var(--text-secondary)" />
+              <span>Estimated prep {(() => {
+                if (getCartItemCount() === 0) return 12;
+                let maxTime = 12;
+                Object.keys(cart).forEach(key => {
+                  const item = cart[key];
+                  const itemPrep = getStablePrepTime(item.itemId);
+                  if (itemPrep > maxTime) maxTime = itemPrep;
+                });
+                return maxTime;
+              })()} min</span>
             </div>
 
             {/* Cart Items List */}
-            <div className="customer-custom-scrollbar" style={{ flex: 1, overflowY: 'auto', marginBottom: '1.25rem', paddingRight: '0.25rem' }}>
+            <div className="customer-custom-scrollbar" style={{ flex: 1, overflowY: 'auto', marginBottom: '1.25rem', paddingRight: '0.25rem', display: 'flex', flexDirection: 'column' }}>
               {Object.keys(cart).length === 0 ? (
-                <div style={{ textAlign: 'center', padding: '4rem 0', color: 'var(--text-secondary)' }}>
-                  <ShoppingBag size={44} style={{ opacity: 0.15, marginBottom: '1rem', color: 'var(--text-primary)' }} />
-                  <p style={{ fontWeight: '600' }}>Your cart is empty</p>
+                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', flex: 1, padding: '3rem 0', color: 'var(--text-secondary)' }}>
+                  <p style={{ fontWeight: '500', fontSize: '1.1rem', color: 'var(--text-muted)', marginBottom: '2rem' }}>Your cart is empty</p>
+                  <button 
+                    onClick={() => setIsCartOpen(false)}
+                    style={{
+                      backgroundColor: '#1c1512',
+                      color: '#ffffff',
+                      border: 'none',
+                      borderRadius: '25px',
+                      padding: '12px 36px',
+                      fontSize: '0.9rem',
+                      fontWeight: '700',
+                      cursor: 'pointer',
+                      boxShadow: '0 4px 12px rgba(0,0,0,0.1)'
+                    }}
+                  >
+                    Back to Menu
+                  </button>
                 </div>
               ) : (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>

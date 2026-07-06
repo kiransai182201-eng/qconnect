@@ -1,6 +1,6 @@
 import React, { Suspense, useEffect } from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
-import { supabase } from './lib/supabase';
+import { supabase, isMockMode } from './lib/supabase';
 import { LanguageProvider } from './contexts/LanguageContext';
 import OwnerLayout from './components/OwnerLayout';
 import ErrorBoundary from './components/ErrorBoundary';
@@ -13,6 +13,7 @@ const ShopDetails = React.lazy(() => import('./pages/ShopDetails'));
 const QRCodeGeneration = React.lazy(() => import('./pages/QRCodeGeneration'));
 const MenuBuilder = React.lazy(() => import('./pages/MenuBuilder'));
 const Dashboard = React.lazy(() => import('./pages/Dashboard'));
+const Tables = React.lazy(() => import('./pages/Tables'));
 const CustomerMenu = React.lazy(() => import('./pages/CustomerMenu'));
 const Orders = React.lazy(() => import('./pages/Orders'));
 const Settings = React.lazy(() => import('./pages/Settings'));
@@ -98,6 +99,7 @@ function App() {
               {/* Owner Layout Persistent Route Group */}
               <Route element={<OwnerLayout />}>
                 <Route path="/dashboard" element={<Dashboard />} />
+                <Route path="/tables" element={<Tables />} />
                 <Route path="/menu-builder" element={<MenuBuilder />} />
                 <Route path="/qr-code" element={<QRCodeGeneration />} />
                 <Route path="/orders" element={<Orders />} />
