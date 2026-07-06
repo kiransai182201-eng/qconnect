@@ -8,11 +8,9 @@ import {
   ArrowLeft, 
   Upload, 
   Clock, 
-  Tag, 
   Sparkles,
   Utensils,
-  ChevronRight,
-  X
+  Package
 } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import '../menu-builder.css';
@@ -68,33 +66,6 @@ const RESTAURANT_PRESETS = {
 
 const DEFAULT_CATEGORIES = RESTAURANT_PRESETS['Restaurant'];
 
-const getCategoryType = (categoryName) => {
-  if (!categoryName) return 'food';
-  const lower = categoryName.toLowerCase();
-  if (
-    lower.includes('drink') || 
-    lower.includes('beverage') || 
-    lower.includes('tea') || 
-    lower.includes('coffee') || 
-    lower.includes('juice') || 
-    lower.includes('smoothie') || 
-    lower.includes('mocktail')
-  ) {
-    return 'drinks';
-  }
-  if (
-    lower.includes('dessert') || 
-    lower.includes('cake') || 
-    lower.includes('pastry') || 
-    lower.includes('sweet') || 
-    lower.includes('ice cream') ||
-    lower.includes('bakery')
-  ) {
-    return 'desserts';
-  }
-  return 'food';
-};
-
 const MenuBuilder = () => {
   const navigate = useNavigate();
   const { shop, setShop } = useOutletContext();
@@ -115,8 +86,8 @@ const MenuBuilder = () => {
   const [imagePreview, setImagePreview] = useState('');
   const [uploadingImage, setUploadingImage] = useState(false);
   const [prepTime, setPrepTime] = useState(10);
-  const [dietType, setDietType] = useState('veg'); // veg, non-veg, spicy, gluten-free
-  const [customizationOptions, setCustomizationOptions] = useState([]); // Legacy
+  const [dietType, setDietType] = useState('veg'); // veg, non-veg, vegan, gluten-free, spicy
+  const [customizationOptions, setCustomizationOptions] = useState([]);
   
   // V2 Customization State
   const [availableTemplates, setAvailableTemplates] = useState([]);
@@ -124,7 +95,6 @@ const MenuBuilder = () => {
   const [localCustomizationGroups, setLocalCustomizationGroups] = useState([]);
   const [localCustomizationOptions, setLocalCustomizationOptions] = useState([]);
 
-  const [newOptionText, setNewOptionText] = useState('');
   const [isAvailable, setIsAvailable] = useState(true);
   
   const [editingItemId, setEditingItemId] = useState(null);
@@ -236,19 +206,16 @@ const MenuBuilder = () => {
   };
 
   const deleteCategory = async (catId) => {
-    // Delete all items in this category first
     const { error: itemsError } = await supabase.from('items').delete().eq('category_id', catId);
     if (itemsError) {
       alert(`Failed to delete items: ${itemsError.message}`);
       return;
     }
-    // Delete the category
     const { error: catError } = await supabase.from('categories').delete().eq('id', catId);
     if (catError) {
       alert(`Failed to delete category: ${catError.message}`);
       return;
     }
-    // Update local state
     setItems(prev => prev.filter(item => item.category_id !== catId));
     setCategories(prev => prev.filter(c => c.id !== catId));
     if (activeCategoryId === catId) {
@@ -261,78 +228,72 @@ const MenuBuilder = () => {
   const addItem = async (e) => {
     e.preventDefault();
     if (newItem.name && newItem.price && activeCategoryId) {
-      // Append metadata to the description field
       const descToSave = newItem.description.trim() + 
         ` [PREP: ${prepTime}]` + 
         ` [DIET: ${dietType}]` + 
         (customizationOptions.length > 0 ? ` [CUSTOMIZATIONS: ${customizationOptions.join('; ')}]` : '');
 
       try {
-          // Upload image if selected
-          let uploadedImageUrl = null;
-          if (imageFile) {
-            setUploadingImage(true);
-            const fileExt = imageFile.name.split('.').pop();
-            const fileName = `items/${shop.id}/${Date.now()}-${Math.random().toString(36).substring(2)}.${fileExt}`;
-            
-            const { data: uploadData, error: uploadError } = await supabase.storage
+        let savedItemId = null;
+        let uploadedImageUrl = null;
+        if (imageFile) {
+          setUploadingImage(true);
+          const fileExt = imageFile.name.split('.').pop();
+          const fileName = `items/${shop.id}/${Date.now()}-${Math.random().toString(36).substring(2)}.${fileExt}`;
+          
+          const { data: uploadData, error: uploadError } = await supabase.storage
+            .from('shop-logos')
+            .upload(fileName, imageFile, { cacheControl: '3600', upsert: false });
+
+          if (uploadError) {
+            console.error("Image upload failed:", uploadError);
+            alert("Image upload failed, continuing without image...");
+          } else if (uploadData) {
+            const { data: { publicUrl } } = supabase.storage
               .from('shop-logos')
-              .upload(fileName, imageFile, { cacheControl: '3600', upsert: false });
-
-            if (uploadError) {
-              console.error("Image upload failed:", uploadError);
-              alert("Image upload failed, continuing without image...");
-            } else if (uploadData) {
-              const { data: { publicUrl } } = supabase.storage
-                .from('shop-logos')
-                .getPublicUrl(fileName);
-              uploadedImageUrl = publicUrl;
-            }
-            setUploadingImage(false);
+              .getPublicUrl(fileName);
+            uploadedImageUrl = publicUrl;
           }
+          setUploadingImage(false);
+        }
 
-          if (editingItemId) {
-            // Update existing item
-            const updatePayload = {
-              name: newItem.name, 
-              price: parseFloat(newItem.price), 
-              description: descToSave,
-              is_available: isAvailable
-            };
-            if (uploadedImageUrl) updatePayload.image_url = uploadedImageUrl;
+        if (editingItemId) {
+          const updatePayload = {
+            name: newItem.name, 
+            price: parseFloat(newItem.price), 
+            description: descToSave,
+            is_available: isAvailable
+          };
+          if (uploadedImageUrl) updatePayload.image_url = uploadedImageUrl;
 
-            const { data, error } = await supabase.from('items').update(updatePayload).eq('id', editingItemId).select();
+          const { data, error } = await supabase.from('items').update(updatePayload).eq('id', editingItemId).select();
 
-            if (error) throw error;
-            if (data) {
-              setItems(items.map(item => item.id === editingItemId ? data[0] : item));
-              savedItemId = editingItemId;
-              // Clear old customizations for a full replacement
-              await supabase.from('item_customization_groups').delete().eq('item_id', savedItemId);
-            }
-          } else {
-            // Insert new item
-            const insertPayload = { 
-              category_id: activeCategoryId, 
-              name: newItem.name, 
-              price: parseFloat(newItem.price), 
-              description: descToSave,
-              is_available: isAvailable
-            };
-            if (uploadedImageUrl) insertPayload.image_url = uploadedImageUrl;
-
-            const { data, error } = await supabase.from('items').insert([insertPayload]).select();
-
-            if (error) throw error;
-            if (data) {
-              setItems([...items, data[0]]);
-              savedItemId = data[0].id;
-            }
+          if (error) throw error;
+          if (data) {
+            setItems(items.map(item => item.id === editingItemId ? data[0] : item));
+            savedItemId = editingItemId;
+            await supabase.from('item_customization_groups').delete().eq('item_id', savedItemId);
           }
+        } else {
+          const insertPayload = { 
+            category_id: activeCategoryId, 
+            name: newItem.name, 
+            price: parseFloat(newItem.price), 
+            description: descToSave,
+            is_available: isAvailable
+          };
+          if (uploadedImageUrl) insertPayload.image_url = uploadedImageUrl;
 
-        // Save V2 Customizations
+          const { data, error } = await supabase.from('items').insert([insertPayload]).select();
+
+          if (error) throw error;
+          if (data) {
+            setItems([...items, data[0]]);
+            savedItemId = data[0].id;
+          }
+        }
+
         if (savedItemId && localCustomizationGroups.length > 0) {
-          // 1. Insert groups
           const groupInsertData = localCustomizationGroups.map(g => ({
             item_id: savedItemId,
             name: g.name,
@@ -350,12 +311,11 @@ const MenuBuilder = () => {
             
           if (groupError) throw groupError;
           
-          // 2. Map temp UUIDs to Real UUIDs
           if (insertedGroups && insertedGroups.length > 0) {
             const optionInsertData = [];
             
             localCustomizationGroups.forEach((tempGroup, index) => {
-              const realGroupId = insertedGroups[index].id; // Arrays align because we inserted them in order
+              const realGroupId = insertedGroups[index].id;
               const opts = localCustomizationOptions.filter(o => o.group_id === tempGroup.id);
               
               opts.forEach(opt => {
@@ -402,7 +362,6 @@ const MenuBuilder = () => {
     setCustomizationOptions(meta.customs);
     setIsAvailable(item.is_available !== false);
     
-    // Fetch V2 Customizations
     const { data: iGroups } = await supabase
       .from('item_customization_groups')
       .select('*')
@@ -433,7 +392,6 @@ const MenuBuilder = () => {
   const applyTemplate = async (templateId) => {
     if (!templateId) return;
     
-    // Fetch template groups
     const { data: tGroups } = await supabase
       .from('template_groups')
       .select('*')
@@ -443,20 +401,18 @@ const MenuBuilder = () => {
     
     const groupIds = tGroups.map(g => g.id);
     
-    // Fetch template options
     const { data: tOptions } = await supabase
       .from('template_options')
       .select('*')
       .in('group_id', groupIds);
       
-    // Map to local state with temporary IDs
     const newLocalGroups = [];
     const newLocalOptions = [];
     
     tGroups.forEach(g => {
       const tempId = crypto.randomUUID();
       newLocalGroups.push({
-        id: tempId, // temp id
+        id: tempId,
         name: g.name,
         selection_type: g.selection_type,
         is_required: g.is_required,
@@ -468,8 +424,8 @@ const MenuBuilder = () => {
       const gOpts = (tOptions || []).filter(o => o.group_id === g.id);
       gOpts.forEach(o => {
         newLocalOptions.push({
-          id: crypto.randomUUID(), // temp id
-          group_id: tempId, // link to temp group id
+          id: crypto.randomUUID(),
+          group_id: tempId,
           name: o.name,
           price_type: o.price_type,
           price_value: o.price_value,
@@ -483,15 +439,6 @@ const MenuBuilder = () => {
     setLocalCustomizationGroups(prev => [...prev, ...newLocalGroups]);
     setLocalCustomizationOptions(prev => [...prev, ...newLocalOptions]);
     setSelectedTemplateId('');
-  };
-
-  const deleteLocalGroup = (tempId) => {
-    setLocalCustomizationGroups(prev => prev.filter(g => g.id !== tempId));
-    setLocalCustomizationOptions(prev => prev.filter(o => o.group_id !== tempId));
-  };
-
-  const deleteLocalOption = (tempId) => {
-    setLocalCustomizationOptions(prev => prev.filter(o => o.id !== tempId));
   };
 
   const resetForm = () => {
@@ -525,31 +472,20 @@ const MenuBuilder = () => {
     setPublished(true);
   };
 
-  const addCustomizationOption = () => {
-    if (newOptionText.trim()) {
-      setCustomizationOptions([...customizationOptions, newOptionText.trim()]);
-      setNewOptionText('');
-    }
-  };
-
-  const removeCustomizationOption = (indexToRemove) => {
-    setCustomizationOptions(customizationOptions.filter((_, idx) => idx !== indexToRemove));
-  };
-
   const activeCategory = categories.find(c => c.id === activeCategoryId);
 
   if (published) {
     return (
-      <div style={{ minHeight: '80vh', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '2rem', textAlign: 'center' }}>
-        <div style={{ background: 'var(--color-surface)', border: '1px solid var(--glass-border)', padding: '4rem 2rem', borderRadius: '24px', maxWidth: '500px' }}>
-          <div style={{ background: 'rgba(255,109,0,0.1)', width: '80px', height: '80px', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 2rem' }}>
-            <Sparkles size={40} color="var(--color-accent)" />
+      <div style={{ minHeight: '80vh', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '2rem', textAlign: 'center', backgroundColor: '#0B0B0C' }}>
+        <div style={{ background: '#141416', border: '1px solid rgba(212, 160, 42, 0.25)', padding: '4rem 2rem', borderRadius: '24px', maxWidth: '500px' }}>
+          <div style={{ background: 'rgba(212,160,42,0.1)', width: '80px', height: '80px', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 2rem' }}>
+            <Sparkles size={40} color="#D4A02A" />
           </div>
-          <h2 style={{ marginBottom: '1rem', fontSize: '2rem', color: 'var(--color-text-main)', fontWeight: '800' }}>Menu Published!</h2>
-          <p style={{ color: 'var(--color-text-muted)', marginBottom: '2rem', fontSize: '1.1rem' }}>
+          <h2 style={{ marginBottom: '1rem', fontSize: '2rem', color: '#FFFFFF', fontWeight: '800', fontFamily: "'Playfair Display', serif" }}>Menu Published!</h2>
+          <p style={{ color: '#A0A0A0', marginBottom: '2rem', fontSize: '1.1rem' }}>
             Your digital menu is now live. Customers scanning your QR codes will see the latest offerings instantly.
           </p>
-          <button className="btn-primary" onClick={() => navigate('/dashboard')} style={{ padding: '12px 32px' }}>
+          <button className="mb-btn-gold" onClick={() => navigate('/dashboard')}>
             {t.dashboard}
           </button>
         </div>
@@ -560,7 +496,7 @@ const MenuBuilder = () => {
   return (
     <div className="mb-page-wrapper">
       
-      {/* 3 Column Grid Container */}
+      {/* 3 Column Grid Layout */}
       <div className="mb-grid-layout">
         
         {/* COLUMN 1: Menu Categories Sidebar */}
@@ -606,80 +542,39 @@ const MenuBuilder = () => {
               </div>
             ))}
 
-            {/* Load Default Categories (shown when empty) */}
+            {/* Quick Presets (Shown when empty) */}
             {categories.length === 0 && (
-              <div style={{ padding: '1rem', borderRadius: '12px', border: '1px dashed var(--color-accent)', background: 'rgba(255,109,0,0.05)', marginBottom: '0.75rem' }}>
-                <p style={{ fontSize: '0.85rem', fontWeight: 600, color: 'var(--color-accent)', marginBottom: '0.5rem', textAlign: 'center' }}>Quick Start: Select Preset Categories</p>
-                
-                {/* Restaurant Type Selector */}
-                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px', marginBottom: '0.75rem', justifyContent: 'center' }}>
-                  {Object.keys(RESTAURANT_PRESETS).map(type => (
-                    <button
-                      key={type}
-                      type="button"
-                      onClick={() => {
-                        setSelectedPresetType(type);
-                        setSelectedDefaults(new Set(RESTAURANT_PRESETS[type]));
-                      }}
-                      style={{
-                        padding: '4px 8px',
-                        fontSize: '0.7rem',
-                        borderRadius: '6px',
-                        border: selectedPresetType === type ? '1px solid var(--color-accent)' : '1px solid var(--glass-border)',
-                        background: selectedPresetType === type ? 'var(--color-accent)' : 'transparent',
-                        color: selectedPresetType === type ? '#fff' : 'var(--color-text-muted)',
-                        cursor: 'pointer',
-                        fontWeight: selectedPresetType === type ? 600 : 400
-                      }}
-                    >
-                      {type}
-                    </button>
-                  ))}
-                </div>
-
-                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px', marginBottom: '0.75rem', maxHeight: '260px', overflowY: 'auto' }}>
+              <div style={{ padding: '12px', borderRadius: '12px', border: '1px dashed #D4A02A', background: 'rgba(212,160,42,0.05)', marginBottom: '12px' }}>
+                <p style={{ fontSize: '0.82rem', fontWeight: 600, color: '#D4A02A', marginBottom: '8px', textAlign: 'center' }}>Quick Start Presets</p>
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px', marginBottom: '10px' }}>
                   {(RESTAURANT_PRESETS[selectedPresetType] || DEFAULT_CATEGORIES).map(cat => (
                     <button
                       key={cat}
                       type="button"
                       onClick={() => toggleDefault(cat)}
                       style={{
-                        padding: '6px 10px',
-                        fontSize: '0.75rem',
-                        borderRadius: '8px',
-                        border: selectedDefaults.has(cat) ? '1.5px solid var(--color-accent)' : '1px solid var(--glass-border)',
-                        background: selectedDefaults.has(cat) ? 'rgba(255,109,0,0.15)' : 'transparent',
-                        color: selectedDefaults.has(cat) ? 'var(--color-accent)' : 'var(--color-text-muted)',
-                        cursor: 'pointer',
-                        transition: 'all 0.15s ease',
-                        fontWeight: selectedDefaults.has(cat) ? 600 : 400
+                        padding: '4px 8px',
+                        fontSize: '0.74rem',
+                        borderRadius: '6px',
+                        border: selectedDefaults.has(cat) ? '1px solid #D4A02A' : '1px solid rgba(255,255,255,0.1)',
+                        background: selectedDefaults.has(cat) ? 'rgba(212,160,42,0.15)' : 'transparent',
+                        color: selectedDefaults.has(cat) ? '#D4A02A' : '#A0A0A0',
+                        cursor: 'pointer'
                       }}
                     >
                       {cat}
                     </button>
                   ))}
                 </div>
-                <div style={{ display: 'flex', gap: '8px' }}>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      const currentList = RESTAURANT_PRESETS[selectedPresetType] || DEFAULT_CATEGORIES;
-                      if (selectedDefaults.size === currentList.length) setSelectedDefaults(new Set());
-                      else setSelectedDefaults(new Set(currentList));
-                    }}
-                    style={{ flex: 1, padding: '8px', fontSize: '0.75rem', borderRadius: '8px', border: '1px solid var(--glass-border)', background: 'transparent', color: 'var(--color-text-muted)', cursor: 'pointer' }}
-                  >
-                    {selectedDefaults.size === (RESTAURANT_PRESETS[selectedPresetType] || DEFAULT_CATEGORIES).length ? 'Deselect All' : 'Select All'}
-                  </button>
-                  <button
-                    type="button"
-                    onClick={loadDefaultCategories}
-                    disabled={loadingDefaults || selectedDefaults.size === 0}
-                    style={{ flex: 2, padding: '8px', fontSize: '0.8rem', fontWeight: 700, borderRadius: '8px', border: 'none', background: 'var(--color-accent)', color: '#fff', cursor: 'pointer', opacity: selectedDefaults.size === 0 ? 0.5 : 1 }}
-                  >
-                    {loadingDefaults ? 'Adding...' : `Add ${selectedDefaults.size} Categories`}
-                  </button>
-                </div>
+                <button
+                  type="button"
+                  onClick={loadDefaultCategories}
+                  disabled={loadingDefaults || selectedDefaults.size === 0}
+                  className="mb-btn-gold"
+                  style={{ width: '100%', padding: '8px', fontSize: '0.8rem' }}
+                >
+                  {loadingDefaults ? 'Adding...' : `Add ${selectedDefaults.size} Presets`}
+                </button>
               </div>
             )}
 
@@ -708,12 +603,12 @@ const MenuBuilder = () => {
                 <ArrowLeft size={16} />
               </button>
               <div className="mb-form-header-title">
-                <h2>{editingItemId ? 'Edit Menu Item' : 'Add Menu Item'} ({activeCategory ? activeCategory.name : 'Choose Category'})</h2>
+                <h2>{editingItemId ? 'Edit Menu Item' : 'Add Menu Item'} ({activeCategory ? activeCategory.name : 'Food'})</h2>
                 <p>Comprehensive {editingItemId ? 'Edit' : 'Add'} Menu Item</p>
               </div>
             </div>
             
-            <button className="tables-btn-primary" onClick={handlePublish} disabled={isPublishing}>
+            <button className="mb-btn-gold" onClick={handlePublish} disabled={isPublishing}>
               Publish Menu
             </button>
           </div>
@@ -721,7 +616,7 @@ const MenuBuilder = () => {
           <div className="mb-form-card">
             <form onSubmit={addItem}>
               
-              {/* Top section: Upload area on the left, Input fields on the right */}
+              {/* Top Section: Upload Area Left, Fields Right */}
               <div className="mb-form-top-row">
                 <div className="mb-upload-area" onClick={() => document.getElementById('item-image-upload').click()}>
                   <input 
@@ -737,14 +632,14 @@ const MenuBuilder = () => {
                     }}
                   />
                   {imagePreview ? (
-                    <img src={imagePreview} alt="Preview" style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: '14px' }} />
+                    <img src={imagePreview} alt="Preview" />
                   ) : (
                     <>
                       <div className="mb-upload-icon-circle">
                         <Plus size={24} />
                       </div>
-                      <span className="mb-upload-label" style={{ textAlign: 'center' }}>Click to Upload</span>
-                      <span style={{ fontSize: '0.68rem', color: 'var(--color-text-muted)', opacity: 0.5 }}>Image</span>
+                      <span className="mb-upload-label">CLICK TO UPLOAD</span>
+                      <span style={{ fontSize: '0.68rem', color: '#A0A0A0', opacity: 0.5 }}>Image</span>
                     </>
                   )}
                 </div>
@@ -752,7 +647,7 @@ const MenuBuilder = () => {
                 <div className="mb-form-top-fields">
                   <div className="mb-flex-row">
                     <div className="mb-form-group">
-                      <label>Item Name</label>
+                      <label>ITEM NAME</label>
                       <input 
                         type="text" 
                         required 
@@ -763,7 +658,7 @@ const MenuBuilder = () => {
                       />
                     </div>
                     <div className="mb-form-group half">
-                      <label>Price (₹)</label>
+                      <label>PRICE (₹)</label>
                       <input 
                         type="number" 
                         required 
@@ -776,7 +671,7 @@ const MenuBuilder = () => {
                   </div>
 
                   <div className="mb-form-group">
-                    <label>Description (Optional)</label>
+                    <label>DESCRIPTION (OPTIONAL)</label>
                     <textarea 
                       className="mb-textarea"
                       placeholder="Full description of the menu item..."
@@ -789,7 +684,7 @@ const MenuBuilder = () => {
                 </div>
               </div>
 
-              {/* Middle row: Availability Toggle and Prep Time */}
+              {/* Middle Row: Availability Toggle & Prep Time */}
               <div className="mb-middle-row">
                 <div className="mb-availability-wrapper">
                   <span className="mb-availability-label">Availability</span>
@@ -817,155 +712,39 @@ const MenuBuilder = () => {
                 </div>
               </div>
 
-              {/* Dynamic Attribute & Tag Groups based on Active Category */}
-              {(() => {
-                const catType = getCategoryType(activeCategory?.name);
-                const selectedTags = dietType ? dietType.split(',').map(s => s.trim()) : [];
-                
-                const toggleTag = (tagKey) => {
-                  if (selectedTags.includes(tagKey)) {
-                    const next = selectedTags.filter(t => t !== tagKey);
-                    setDietType(next.join(', '));
-                  } else {
-                    const next = [...selectedTags, tagKey];
-                    setDietType(next.join(', '));
-                  }
-                };
+              {/* Dietary Tags Row */}
+              <div className="mb-dietary-section">
+                <div className="mb-dietary-label">DIETARY TAG</div>
+                <div className="mb-dietary-selector">
+                  {[
+                    { key: 'veg', label: '🟢 Veg' },
+                    { key: 'non-veg', label: '🔴 Non-Veg' },
+                    { key: 'vegan', label: '🌱 Vegan' },
+                    { key: 'gluten-free', label: '🌾 Gluten-Free' },
+                    { key: 'spicy', label: '🔥 Spicy' }
+                  ].map(({ key, label }) => (
+                    <button
+                      key={key}
+                      type="button"
+                      className={`mb-dietary-pill ${dietType === key ? 'active' : ''}`}
+                      onClick={() => setDietType(key)}
+                    >
+                      {label}
+                    </button>
+                  ))}
+                </div>
+              </div>
 
-                return (
-                  <div style={{ marginBottom: '20px', display: 'flex', flexDirection: 'column', gap: '16px' }}>
-                    {catType === 'food' && (
-                      <>
-                        <div className="mb-form-group">
-                          <label style={{ fontSize: '0.85rem', fontWeight: 600, color: 'var(--color-text-main)' }}>Dietary Attributes</label>
-                          <div className="mb-dietary-selector">
-                            {[
-                              { key: 'veg', label: '🟢 Veg' },
-                              { key: 'non-veg', label: '🔴 Non-Veg' },
-                              { key: 'egg', label: '🥚 Egg' },
-                              { key: 'vegan', label: '🌱 Vegan' },
-                              { key: 'jain', label: '🙏 Jain' },
-                              { key: 'gluten-free', label: '🌾 Gluten-Free' }
-                            ].map(({ key, label }) => (
-                              <button
-                                key={key}
-                                type="button"
-                                className={`mb-dietary-pill ${selectedTags.includes(key) ? 'active' : ''}`}
-                                onClick={() => toggleTag(key)}
-                              >
-                                {label}
-                              </button>
-                            ))}
-                          </div>
-                        </div>
-
-                        <div className="mb-form-group">
-                          <label style={{ fontSize: '0.85rem', fontWeight: 600, color: 'var(--color-text-main)' }}>Spice Level</label>
-                          <div className="mb-dietary-selector">
-                            {[
-                              { key: 'mild', label: '🌶️ Mild' },
-                              { key: 'medium', label: '🌶️🌶️ Medium' },
-                              { key: 'spicy', label: '🔥 Spicy' },
-                              { key: 'extra-spicy', label: '💥 Extra Spicy' }
-                            ].map(({ key, label }) => (
-                              <button
-                                key={key}
-                                type="button"
-                                className={`mb-dietary-pill ${selectedTags.includes(key) ? 'active' : ''}`}
-                                onClick={() => toggleTag(key)}
-                              >
-                                {label}
-                              </button>
-                            ))}
-                          </div>
-                        </div>
-                      </>
-                    )}
-
-                    {catType === 'drinks' && (
-                      <>
-                        <div className="mb-form-group">
-                          <label style={{ fontSize: '0.85rem', fontWeight: 600, color: 'var(--color-text-main)' }}>Temperature</label>
-                          <div className="mb-dietary-selector">
-                            {[
-                              { key: 'hot', label: '☕ Hot' },
-                              { key: 'cold', label: '🧊 Cold' }
-                            ].map(({ key, label }) => (
-                              <button
-                                key={key}
-                                type="button"
-                                className={`mb-dietary-pill ${selectedTags.includes(key) ? 'active' : ''}`}
-                                onClick={() => toggleTag(key)}
-                              >
-                                {label}
-                              </button>
-                            ))}
-                          </div>
-                        </div>
-
-                        <div className="mb-form-group">
-                          <label style={{ fontSize: '0.85rem', fontWeight: 600, color: 'var(--color-text-main)' }}>Drink Type</label>
-                          <div className="mb-dietary-selector">
-                            {[
-                              { key: 'coffee', label: '☕ Coffee' },
-                              { key: 'tea', label: '🫖 Tea' },
-                              { key: 'juice', label: '🧃 Juice' },
-                              { key: 'milkshake', label: '🥤 Milkshake' },
-                              { key: 'mocktail', label: '🍹 Mocktail' },
-                              { key: 'soft-drink', label: '🥤 Soft Drink' }
-                            ].map(({ key, label }) => (
-                              <button
-                                key={key}
-                                type="button"
-                                className={`mb-dietary-pill ${selectedTags.includes(key) ? 'active' : ''}`}
-                                onClick={() => toggleTag(key)}
-                              >
-                                {label}
-                              </button>
-                            ))}
-                          </div>
-                        </div>
-                      </>
-                    )}
-
-                    {catType === 'desserts' && (
-                      <div className="mb-form-group">
-                        <label style={{ fontSize: '0.85rem', fontWeight: 600, color: 'var(--color-text-main)' }}>Dessert Type & Attributes</label>
-                        <div className="mb-dietary-selector">
-                          {[
-                            { key: 'eggless', label: '🟢 Eggless' },
-                            { key: 'contains-egg', label: '🥚 Contains Egg' },
-                            { key: 'ice-cream', label: '🍨 Ice Cream' },
-                            { key: 'frozen', label: '❄️ Frozen' },
-                            { key: 'served-hot', label: '🔥 Served Hot' }
-                          ].map(({ key, label }) => (
-                            <button
-                              key={key}
-                              type="button"
-                              className={`mb-dietary-pill ${selectedTags.includes(key) ? 'active' : ''}`}
-                              onClick={() => toggleTag(key)}
-                            >
-                              {label}
-                            </button>
-                          ))}
-                        </div>
-                      </div>
-                    )}
-                  </div>
-                );
-              })()}
-
-              {/* V2 Customizations Section */}
-              <div className="mb-customizations-card" style={{ padding: '20px', background: 'var(--color-surface)', borderRadius: '12px', border: '1px solid var(--glass-border)', marginTop: '24px' }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
-                  <h4 className="mb-customizations-title" style={{ margin: 0, fontSize: '1.1rem' }}>Item Customizations</h4>
+              {/* Customizations Section */}
+              <div className="mb-customizations-card">
+                <div className="mb-customizations-header">
+                  <h4 className="mb-customizations-title">Item Customizations</h4>
                   
-                  {/* Template Applier */}
                   {availableTemplates.length > 0 && (
                     <div style={{ display: 'flex', gap: '8px' }}>
                       <select 
                         className="mb-input-text" 
-                        style={{ padding: '6px 12px', width: '200px' }}
+                        style={{ padding: '6px 12px', fontSize: '0.8rem' }}
                         value={selectedTemplateId}
                         onChange={(e) => setSelectedTemplateId(e.target.value)}
                       >
@@ -976,8 +755,8 @@ const MenuBuilder = () => {
                       </select>
                       <button 
                         type="button" 
-                        className="tables-btn-outline"
-                        style={{ padding: '6px 12px' }}
+                        className="mb-btn-gold"
+                        style={{ padding: '6px 16px', fontSize: '0.8rem' }}
                         onClick={() => applyTemplate(selectedTemplateId)}
                         disabled={!selectedTemplateId}
                       >
@@ -988,71 +767,41 @@ const MenuBuilder = () => {
                 </div>
 
                 {localCustomizationGroups.length === 0 ? (
-                  <div style={{ textAlign: 'center', padding: '2rem 1rem', background: 'rgba(0,0,0,0.02)', borderRadius: '8px' }}>
-                    <p style={{ color: 'var(--color-text-muted)', margin: 0, fontSize: '0.9rem' }}>No customizations for this item.</p>
+                  <div className="mb-customizations-empty">
+                    <Package size={32} style={{ opacity: 0.3 }} />
+                    <span style={{ fontSize: '0.88rem' }}>No customizations for this item.</span>
                   </div>
                 ) : (
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-                    {localCustomizationGroups.map((group) => {
-                      const opts = localCustomizationOptions.filter(o => o.group_id === group.id);
-                      return (
-                        <div key={group.id} style={{ border: '1px solid var(--glass-border)', borderRadius: '8px', overflow: 'hidden' }}>
-                          <div style={{ padding: '12px', background: 'rgba(255,255,255,0.03)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                            <div>
-                              <span style={{ fontWeight: 600 }}>{group.name}</span>
-                              <span style={{ fontSize: '0.75rem', color: 'var(--color-text-muted)', marginLeft: '8px' }}>
-                                ({group.selection_type})
-                              </span>
-                            </div>
-                            <button type="button" className="mb-cat-btn delete" onClick={() => deleteLocalGroup(group.id)}>
-                              <Trash2 size={14} />
-                            </button>
-                          </div>
-                          
-                          {opts.length > 0 && (
-                            <div style={{ padding: '8px 12px', borderTop: '1px solid var(--glass-border)' }}>
-                              {opts.map(opt => (
-                                <div key={opt.id} style={{ display: 'flex', justifyContent: 'space-between', padding: '6px 0', fontSize: '0.85rem' }}>
-                                  <span>{opt.name} {opt.is_default && <span style={{ color: 'var(--color-accent)', fontSize: '0.7rem', marginLeft: '4px' }}>(Default)</span>}</span>
-                                  <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                                    <span style={{ color: 'var(--color-text-muted)' }}>
-                                      {opt.price_value > 0 ? `+₹${opt.price_value}` : 'Free'}
-                                    </span>
-                                    <button type="button" className="mb-cat-btn delete" onClick={() => deleteLocalOption(opt.id)}>
-                                      <Trash2 size={12} />
-                                    </button>
-                                  </div>
-                                </div>
-                              ))}
-                            </div>
-                          )}
-                        </div>
-                      );
-                    })}
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                    {localCustomizationGroups.map((group) => (
+                      <div key={group.id} style={{ border: '1px solid rgba(255,255,255,0.08)', borderRadius: '8px', padding: '10px 14px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                        <span>{group.name} ({group.selection_type})</span>
+                        <button type="button" className="mb-cat-btn delete" onClick={() => deleteLocalGroup(group.id)}>
+                          <Trash2 size={14} />
+                        </button>
+                      </div>
+                    ))}
                   </div>
                 )}
-                <div style={{ marginTop: '16px', fontSize: '0.8rem', color: 'var(--color-text-muted)' }}>
+                <div className="mb-customizations-note">
                   Note: Customizations are saved when you click "{editingItemId ? 'Update Item' : '+ Add Item'}".
                 </div>
               </div>
 
-              {/* Action Buttons Row */}
+              {/* Form Action Buttons */}
               <div className="mb-form-actions">
-                <div>
-                  {editingItemId && (
-                    <button 
-                      type="button" 
-                      className="tables-btn-outline" 
-                      onClick={resetForm}
-                      style={{ marginRight: '12px' }}
-                    >
-                      Cancel Edit
-                    </button>
-                  )}
-                </div>
+                {editingItemId && (
+                  <button 
+                    type="button" 
+                    onClick={resetForm}
+                    style={{ background: 'transparent', border: '1px solid rgba(255,255,255,0.2)', color: '#FFFFFF', borderRadius: '20px', padding: '8px 18px', cursor: 'pointer', fontSize: '0.85rem' }}
+                  >
+                    Cancel Edit
+                  </button>
+                )}
                 <button 
                   type="submit" 
-                  className="tables-btn-primary"
+                  className="mb-btn-gold"
                   disabled={uploadingImage}
                 >
                   {uploadingImage ? 'Uploading...' : (editingItemId ? 'Update Item' : '+ Add Item')}
@@ -1062,31 +811,31 @@ const MenuBuilder = () => {
             </form>
           </div>
 
-          {/* List of current items in this category */}
-          <div style={{ marginTop: '24px' }}>
-            <h3 style={{ margin: '0 0 16px 0', fontSize: '1.15rem', fontWeight: '800' }}>Items in Category</h3>
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))', gap: '14px' }}>
+          {/* Category Items List Section */}
+          <div className="mb-items-section">
+            <h3 className="mb-items-title">Items in Category</h3>
+            <div className="mb-items-grid">
               {items.filter(item => item.category_id === activeCategoryId).map(item => {
                 const meta = parseMetadata(item.description);
                 return (
-                  <div key={item.id} className="mb-category-item" style={{ flexDirection: 'column', alignItems: 'stretch', gap: '10px', cursor: 'default' }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                  <div key={item.id} className="mb-item-card">
+                    <div className="mb-item-card-header">
                       <div>
-                        <h4 style={{ margin: 0, fontSize: '0.92rem', fontWeight: '700' }}>{item.name}</h4>
-                        <span style={{ fontSize: '0.74rem', color: '#10b981', fontWeight: '700', textTransform: 'uppercase' }}>
-                          {meta.diet === 'veg' && 'Veg'}
-                          {meta.diet === 'non-veg' && 'Non-Veg'}
-                          {meta.diet === 'vegan' && 'Vegan'}
-                          {meta.diet === 'gluten-free' && 'Gluten-Free'}
-                          {meta.diet === 'spicy' && 'Spicy'}
+                        <h4 className="mb-item-card-name">{item.name}</h4>
+                        <span className="mb-item-card-veg">
+                          {meta.diet === 'veg' && 'VEG'}
+                          {meta.diet === 'non-veg' && 'NON-VEG'}
+                          {meta.diet === 'vegan' && 'VEGAN'}
+                          {meta.diet === 'gluten-free' && 'GLUTEN-FREE'}
+                          {meta.diet === 'spicy' && 'SPICY'}
                         </span>
                       </div>
-                      <span style={{ fontWeight: '800', fontSize: '0.92rem', color: 'var(--color-accent)' }}>₹{item.price}</span>
+                      <span className="mb-item-card-price">₹{item.price}</span>
                     </div>
-                    <p style={{ margin: 0, fontSize: '0.78rem', color: 'var(--color-text-muted)', lineBreak: 'anywhere' }}>{meta.cleanDesc || 'No description'}</p>
+                    <p className="mb-item-card-desc">{meta.cleanDesc || 'No description'}</p>
                     
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderTop: '1px solid var(--glass-border)', paddingTop: '8px', marginTop: '4px' }}>
-                      <span style={{ fontSize: '0.72rem', color: item.is_available !== false ? '#10b981' : '#ef4444', fontWeight: '700' }}>
+                    <div className="mb-item-card-footer">
+                      <span className={`mb-item-status ${item.is_available !== false ? 'available' : 'out'}`}>
                         {item.is_available !== false ? '• Available' : '• Out of Stock'}
                       </span>
                       <div style={{ display: 'flex', gap: '4px' }}>
@@ -1104,7 +853,7 @@ const MenuBuilder = () => {
             </div>
 
             {items.filter(item => item.category_id === activeCategoryId).length === 0 && (
-              <div className="mb-empty-state">
+              <div style={{ textAlign: 'center', padding: '32px', background: '#141416', border: '1px solid rgba(255,255,255,0.08)', borderRadius: '14px', color: '#A0A0A0', fontSize: '0.88rem' }}>
                 No items in this category yet. Use the form above to add some!
               </div>
             )}
@@ -1112,19 +861,22 @@ const MenuBuilder = () => {
 
         </div>
 
-        {/* COLUMN 3: Real-Time Preview Card */}
+        {/* COLUMN 3: Live Preview Panel */}
         <div className="mb-preview-sidebar">
           <h3>Preview</h3>
           
           <div className="mb-preview-card">
             <div className="mb-preview-img-container">
-              {/* Placeholder image representation matching mockup */}
-              <div style={{ width: '100%', height: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', background: '#1c1512', color: 'var(--color-text-muted)' }}>
-                <Utensils size={32} style={{ opacity: 0.15, marginBottom: '6px' }} />
-                <span style={{ fontSize: '0.72rem', opacity: 0.3, textTransform: 'uppercase', letterSpacing: '0.8px' }}>Preview Item</span>
-              </div>
+              {imagePreview ? (
+                <img src={imagePreview} alt="Preview" />
+              ) : (
+                <div style={{ width: '100%', height: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', color: '#A0A0A0' }}>
+                  <Utensils size={36} style={{ opacity: 0.2, marginBottom: '6px' }} />
+                  <span style={{ fontSize: '0.72rem', opacity: 0.4, textTransform: 'uppercase', letterSpacing: '1px', fontWeight: 700 }}>PREVIEW ITEM</span>
+                </div>
+              )}
 
-              {/* Clock Overlay Badge */}
+              {/* Prep time badge */}
               <div className="mb-preview-card-badge">
                 <Clock size={12} />
                 <span>prep:{prepTime}</span>
@@ -1140,7 +892,7 @@ const MenuBuilder = () => {
               </div>
 
               <div className="mb-preview-card-tags">
-                <span className={`mb-preview-tag veg`}>
+                <span className="mb-preview-tag veg">
                   {dietType === 'veg' && '🟢 Veg'}
                   {dietType === 'non-veg' && '🔴 Non-Veg'}
                   {dietType === 'vegan' && '🌱 Vegan'}
@@ -1167,16 +919,16 @@ const MenuBuilder = () => {
 
       {/* Delete Item Confirmation Modal */}
       {itemToDelete && (
-        <div className="customer-modal-backdrop" style={{ zIndex: 300 }}>
-          <div className="customer-modal" style={{ maxWidth: '380px', padding: '24px' }}>
+        <div style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(0,0,0,0.7)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 300 }}>
+          <div style={{ background: '#141416', border: '1px solid rgba(239, 68, 68, 0.4)', borderRadius: '16px', maxWidth: '380px', width: '90%', padding: '24px' }}>
             <h3 style={{ margin: '0 0 12px 0', fontSize: '1.25rem', fontWeight: '800', color: '#ef4444' }}>Delete Menu Item?</h3>
-            <p style={{ margin: '0 0 20px 0', fontSize: '0.88rem', color: 'var(--color-text-muted)', lineHeight: '1.5' }}>
-              Are you sure you want to permanently delete <strong>"{itemToDelete.name}"</strong>? This action cannot be undone.
+            <p style={{ margin: '0 0 20px 0', fontSize: '0.88rem', color: '#A0A0A0', lineHeight: '1.5' }}>
+              Are you sure you want to permanently delete <strong>"{itemToDelete.name}"</strong>?
             </p>
             <div style={{ display: 'flex', gap: '12px' }}>
               <button 
                 onClick={() => setItemToDelete(null)}
-                style={{ flex: 1, padding: '10px', borderRadius: '10px', border: '1px solid var(--glass-border)', backgroundColor: 'transparent', color: 'var(--color-text-main)', cursor: 'pointer', fontWeight: '600' }}
+                style={{ flex: 1, padding: '10px', borderRadius: '10px', border: '1px solid rgba(255,255,255,0.1)', backgroundColor: 'transparent', color: '#FFFFFF', cursor: 'pointer', fontWeight: '600' }}
               >
                 Cancel
               </button>
@@ -1193,10 +945,10 @@ const MenuBuilder = () => {
 
       {/* Delete Category Confirmation Modal */}
       {categoryToDelete && (
-        <div className="customer-modal-backdrop" style={{ zIndex: 300 }}>
-          <div className="customer-modal" style={{ maxWidth: '380px', padding: '24px' }}>
+        <div style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(0,0,0,0.7)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 300 }}>
+          <div style={{ background: '#141416', border: '1px solid rgba(239, 68, 68, 0.4)', borderRadius: '16px', maxWidth: '380px', width: '90%', padding: '24px' }}>
             <h3 style={{ margin: '0 0 12px 0', fontSize: '1.25rem', fontWeight: '800', color: '#ef4444' }}>Delete Category?</h3>
-            <p style={{ margin: '0 0 8px 0', fontSize: '0.88rem', color: 'var(--color-text-main)', lineHeight: '1.5' }}>
+            <p style={{ margin: '0 0 8px 0', fontSize: '0.88rem', color: '#FFFFFF', lineHeight: '1.5' }}>
               Are you sure you want to delete <strong>"{categoryToDelete.name}"</strong>?
             </p>
             <p style={{ margin: '0 0 20px 0', fontSize: '0.78rem', color: '#ef4444', fontWeight: '600' }}>
@@ -1205,7 +957,7 @@ const MenuBuilder = () => {
             <div style={{ display: 'flex', gap: '12px' }}>
               <button 
                 onClick={() => setCategoryToDelete(null)}
-                style={{ flex: 1, padding: '10px', borderRadius: '10px', border: '1px solid var(--glass-border)', backgroundColor: 'transparent', color: 'var(--color-text-main)', cursor: 'pointer', fontWeight: '600' }}
+                style={{ flex: 1, padding: '10px', borderRadius: '10px', border: '1px solid rgba(255,255,255,0.1)', backgroundColor: 'transparent', color: '#FFFFFF', cursor: 'pointer', fontWeight: '600' }}
               >
                 Cancel
               </button>
