@@ -20,28 +20,12 @@ import { useLanguage } from '../contexts/LanguageContext';
 
 const DEFAULT_CATEGORIES = [
   '🍽️ Starters',
-  '🥗 Soups & Salads',
-  '🍟 Snacks',
-  '🍕 Fast Food',
-  '🍔 Burgers & Sandwiches',
-  '🍝 Pasta & Noodles',
-  '🍗 Chicken Specials',
-  '🥩 Mutton Specials',
-  '🐟 Seafood',
-  '🍛 Curries',
+  '🍲 Main Course',
   '🍚 Rice & Biryani',
-  '🍞 Roti, Naan & Bread',
-  '🥟 Momos',
-  '🌮 Wraps & Rolls',
-  '🧀 Vegetarian',
-  '🌱 Vegan',
+  '🍞 Breads',
+  '🥤 Drinks',
   '🍰 Desserts',
-  '🥤 Beverages',
-  '☕ Tea & Coffee',
-  '🍹 Mocktails & Fresh Juices',
-  '⭐ Chef\'s Specials',
-  '🔥 Today\'s Specials',
-  '🎉 Combo Meals'
+  '🎉 Combos'
 ];
 
 const MenuBuilder = () => {
