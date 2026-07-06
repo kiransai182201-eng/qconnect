@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { X, Star, Clock, Minus, Plus } from 'lucide-react';
-import { supabase } from '../../../lib/supabase';
+import { supabase } from '../../lib/supabase';
 
 const isVegItem = (itemName) => {
   const lower = itemName.toLowerCase();
