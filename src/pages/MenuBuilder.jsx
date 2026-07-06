@@ -18,6 +18,32 @@ import { supabase } from '../lib/supabase';
 import '../menu-builder.css';
 import { useLanguage } from '../contexts/LanguageContext';
 
+const DEFAULT_CATEGORIES = [
+  '🍽️ Starters',
+  '🥗 Soups & Salads',
+  '🍟 Snacks',
+  '🍕 Fast Food',
+  '🍔 Burgers & Sandwiches',
+  '🍝 Pasta & Noodles',
+  '🍗 Chicken Specials',
+  '🥩 Mutton Specials',
+  '🐟 Seafood',
+  '🍛 Curries',
+  '🍚 Rice & Biryani',
+  '🍞 Roti, Naan & Bread',
+  '🥟 Momos',
+  '🌮 Wraps & Rolls',
+  '🧀 Vegetarian',
+  '🌱 Vegan',
+  '🍰 Desserts',
+  '🥤 Beverages',
+  '☕ Tea & Coffee',
+  '🍹 Mocktails & Fresh Juices',
+  '⭐ Chef\'s Specials',
+  '🔥 Today\'s Specials',
+  '🎉 Combo Meals'
+];
+
 const MenuBuilder = () => {
   const navigate = useNavigate();
   const { shop, setShop } = useOutletContext();
@@ -35,7 +61,14 @@ const MenuBuilder = () => {
   const [newItem, setNewItem] = useState({ name: '', price: '', description: '' });
   const [prepTime, setPrepTime] = useState(10);
   const [dietType, setDietType] = useState('veg'); // veg, non-veg, spicy, gluten-free
-  const [customizationOptions, setCustomizationOptions] = useState([]);
+  const [customizationOptions, setCustomizationOptions] = useState([]); // Legacy
+  
+  // V2 Customization State
+  const [availableTemplates, setAvailableTemplates] = useState([]);
+  const [selectedTemplateId, setSelectedTemplateId] = useState('');
+  const [localCustomizationGroups, setLocalCustomizationGroups] = useState([]);
+  const [localCustomizationOptions, setLocalCustomizationOptions] = useState([]);
+
   const [newOptionText, setNewOptionText] = useState('');
   const [isAvailable, setIsAvailable] = useState(true);
   
@@ -73,10 +106,15 @@ const MenuBuilder = () => {
 
       if (cats) {
         setCategories(cats);
-        if (cats.length > 0 && !activeCategoryId) {
-          setActiveCategoryId(cats[0].id);
-        }
+        if (cats.length > 0) setActiveCategoryId(cats[0].id);
       }
+
+      // Fetch V2 Templates
+      const { data: tpls } = await supabase
+        .from('customization_templates')
+        .select('*')
+        .eq('shop_id', shop.id);
+      if (tpls) setAvailableTemplates(tpls);
 
       // Fetch items
       const { data: itms } = await supabase
@@ -104,6 +142,41 @@ const MenuBuilder = () => {
       }
     } else if (!shop?.id) {
       alert("Error: Shop ID is missing.");
+    }
+  };
+
+  const [selectedDefaults, setSelectedDefaults] = useState(new Set(DEFAULT_CATEGORIES));
+  const [loadingDefaults, setLoadingDefaults] = useState(false);
+
+  const toggleDefault = (cat) => {
+    setSelectedDefaults(prev => {
+      const next = new Set(prev);
+      if (next.has(cat)) next.delete(cat);
+      else next.add(cat);
+      return next;
+    });
+  };
+
+  const loadDefaultCategories = async () => {
+    if (!shop?.id || selectedDefaults.size === 0) return;
+    setLoadingDefaults(true);
+    try {
+      const rows = [...selectedDefaults].map(name => ({
+        shop_id: shop.id,
+        name,
+        icon: 'grid'
+      }));
+      const { data, error } = await supabase.from('categories').insert(rows).select();
+      if (error) throw error;
+      if (data) {
+        setCategories(prev => [...prev, ...data]);
+        setActiveCategoryId(data[0].id);
+      }
+    } catch (err) {
+      console.error('Error loading defaults:', err);
+      alert('Failed to load default categories: ' + err.message);
+    } finally {
+      setLoadingDefaults(false);
     }
   };
 
@@ -139,48 +212,105 @@ const MenuBuilder = () => {
         ` [DIET: ${dietType}]` + 
         (customizationOptions.length > 0 ? ` [CUSTOMIZATIONS: ${customizationOptions.join('; ')}]` : '');
 
-      if (editingItemId) {
-        // Update existing item
-        const { data, error } = await supabase.from('items').update({
-          name: newItem.name, 
-          price: parseFloat(newItem.price), 
-          description: descToSave,
-          is_available: isAvailable
-        }).eq('id', editingItemId).select();
-
-        if (error) {
-          console.error("Error updating item:", error);
-          alert(`Failed to update item: ${error.message}`);
-        } else if (data) {
-          setItems(items.map(item => item.id === editingItemId ? data[0] : item));
-          resetForm();
-        }
-      } else {
-        // Insert new item
-        const { data, error } = await supabase.from('items').insert([
-          { 
-            category_id: activeCategoryId, 
+      try {
+        let savedItemId = null;
+        if (editingItemId) {
+          // Update existing item
+          const { data, error } = await supabase.from('items').update({
             name: newItem.name, 
             price: parseFloat(newItem.price), 
             description: descToSave,
             is_available: isAvailable
-          }
-        ]).select();
+          }).eq('id', editingItemId).select();
 
-        if (error) {
-          console.error("Error adding item:", error);
-          alert(`Failed to add item: ${error.message}`);
-        } else if (data) {
-          setItems([...items, data[0]]);
-          resetForm();
+          if (error) throw error;
+          if (data) {
+            setItems(items.map(item => item.id === editingItemId ? data[0] : item));
+            savedItemId = editingItemId;
+            // Clear old customizations for a full replacement
+            await supabase.from('item_customization_groups').delete().eq('item_id', savedItemId);
+          }
+        } else {
+          // Insert new item
+          const { data, error } = await supabase.from('items').insert([
+            { 
+              category_id: activeCategoryId, 
+              name: newItem.name, 
+              price: parseFloat(newItem.price), 
+              description: descToSave,
+              is_available: isAvailable
+            }
+          ]).select();
+
+          if (error) throw error;
+          if (data) {
+            setItems([...items, data[0]]);
+            savedItemId = data[0].id;
+          }
         }
+
+        // Save V2 Customizations
+        if (savedItemId && localCustomizationGroups.length > 0) {
+          // 1. Insert groups
+          const groupInsertData = localCustomizationGroups.map(g => ({
+            item_id: savedItemId,
+            name: g.name,
+            selection_type: g.selection_type,
+            is_required: g.is_required,
+            min_selections: g.min_selections,
+            max_selections: g.max_selections,
+            display_order: g.display_order
+          }));
+          
+          const { data: insertedGroups, error: groupError } = await supabase
+            .from('item_customization_groups')
+            .insert(groupInsertData)
+            .select();
+            
+          if (groupError) throw groupError;
+          
+          // 2. Map temp UUIDs to Real UUIDs
+          if (insertedGroups && insertedGroups.length > 0) {
+            const optionInsertData = [];
+            
+            localCustomizationGroups.forEach((tempGroup, index) => {
+              const realGroupId = insertedGroups[index].id; // Arrays align because we inserted them in order
+              const opts = localCustomizationOptions.filter(o => o.group_id === tempGroup.id);
+              
+              opts.forEach(opt => {
+                optionInsertData.push({
+                  group_id: realGroupId,
+                  name: opt.name,
+                  price_type: opt.price_type,
+                  price_value: opt.price_value,
+                  max_quantity: opt.max_quantity,
+                  is_available: opt.is_available !== false,
+                  is_default: opt.is_default,
+                  display_order: opt.display_order
+                });
+              });
+            });
+            
+            if (optionInsertData.length > 0) {
+              const { error: optError } = await supabase
+                .from('item_customization_options')
+                .insert(optionInsertData);
+              if (optError) throw optError;
+            }
+          }
+        }
+
+        resetForm();
+      } catch (err) {
+        console.error("Error saving item:", err);
+        alert(`Failed to save item: ${err.message}`);
       }
     } else if (!activeCategoryId) {
       alert("Please select a category first.");
     }
   };
 
-  const handleEditClick = (item) => {
+  const handleEditClick = async (item) => {
     setEditingItemId(item.id);
     const meta = parseMetadata(item.description);
     setNewItem({ name: item.name, price: item.price, description: meta.cleanDesc });
@@ -188,7 +318,97 @@ const MenuBuilder = () => {
     setDietType(meta.diet);
     setCustomizationOptions(meta.customs);
     setIsAvailable(item.is_available !== false);
+    
+    // Fetch V2 Customizations
+    const { data: iGroups } = await supabase
+      .from('item_customization_groups')
+      .select('*')
+      .eq('item_id', item.id)
+      .order('display_order', { ascending: true });
+      
+    if (iGroups && iGroups.length > 0) {
+      setLocalCustomizationGroups(iGroups);
+      
+      const groupIds = iGroups.map(g => g.id);
+      const { data: iOptions } = await supabase
+        .from('item_customization_options')
+        .select('*')
+        .in('group_id', groupIds)
+        .order('display_order', { ascending: true });
+        
+      if (iOptions) {
+        setLocalCustomizationOptions(iOptions);
+      }
+    } else {
+      setLocalCustomizationGroups([]);
+      setLocalCustomizationOptions([]);
+    }
+
     window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+
+  const applyTemplate = async (templateId) => {
+    if (!templateId) return;
+    
+    // Fetch template groups
+    const { data: tGroups } = await supabase
+      .from('template_groups')
+      .select('*')
+      .eq('template_id', templateId);
+      
+    if (!tGroups || tGroups.length === 0) return;
+    
+    const groupIds = tGroups.map(g => g.id);
+    
+    // Fetch template options
+    const { data: tOptions } = await supabase
+      .from('template_options')
+      .select('*')
+      .in('group_id', groupIds);
+      
+    // Map to local state with temporary IDs
+    const newLocalGroups = [];
+    const newLocalOptions = [];
+    
+    tGroups.forEach(g => {
+      const tempId = crypto.randomUUID();
+      newLocalGroups.push({
+        id: tempId, // temp id
+        name: g.name,
+        selection_type: g.selection_type,
+        is_required: g.is_required,
+        min_selections: g.min_selections,
+        max_selections: g.max_selections,
+        display_order: g.display_order
+      });
+      
+      const gOpts = (tOptions || []).filter(o => o.group_id === g.id);
+      gOpts.forEach(o => {
+        newLocalOptions.push({
+          id: crypto.randomUUID(), // temp id
+          group_id: tempId, // link to temp group id
+          name: o.name,
+          price_type: o.price_type,
+          price_value: o.price_value,
+          max_quantity: o.max_quantity,
+          is_default: o.is_default,
+          display_order: o.display_order
+        });
+      });
+    });
+    
+    setLocalCustomizationGroups(prev => [...prev, ...newLocalGroups]);
+    setLocalCustomizationOptions(prev => [...prev, ...newLocalOptions]);
+    setSelectedTemplateId('');
+  };
+
+  const deleteLocalGroup = (tempId) => {
+    setLocalCustomizationGroups(prev => prev.filter(g => g.id !== tempId));
+    setLocalCustomizationOptions(prev => prev.filter(o => o.group_id !== tempId));
+  };
+
+  const deleteLocalOption = (tempId) => {
+    setLocalCustomizationOptions(prev => prev.filter(o => o.id !== tempId));
   };
 
   const resetForm = () => {
@@ -197,6 +417,8 @@ const MenuBuilder = () => {
     setPrepTime(10);
     setDietType('veg');
     setCustomizationOptions([]);
+    setLocalCustomizationGroups([]);
+    setLocalCustomizationOptions([]);
     setIsAvailable(true);
   };
 
@@ -277,8 +499,7 @@ const MenuBuilder = () => {
                       e.stopPropagation();
                       const name = prompt("Edit category name:", cat.name);
                       if (name && name.trim()) {
-                        supabase.from('categories').update({ name: name.trim() }).eq('id', cat.id)
-                          .then(() => fetchTables());
+                        supabase.from('categories').update({ name: name.trim() }).eq('id', cat.id);
                         setCategories(categories.map(c => c.id === cat.id ? { ...c, name: name.trim() } : c));
                       }
                     }}
@@ -299,6 +520,55 @@ const MenuBuilder = () => {
                 </div>
               </div>
             ))}
+
+            {/* Load Default Categories (shown when empty) */}
+            {categories.length === 0 && (
+              <div style={{ padding: '1rem', borderRadius: '12px', border: '1px dashed var(--color-accent)', background: 'rgba(255,109,0,0.05)', marginBottom: '0.75rem' }}>
+                <p style={{ fontSize: '0.85rem', fontWeight: 600, color: 'var(--color-accent)', marginBottom: '0.75rem', textAlign: 'center' }}>Quick Start: Select Default Categories</p>
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px', marginBottom: '0.75rem', maxHeight: '260px', overflowY: 'auto' }}>
+                  {DEFAULT_CATEGORIES.map(cat => (
+                    <button
+                      key={cat}
+                      type="button"
+                      onClick={() => toggleDefault(cat)}
+                      style={{
+                        padding: '6px 10px',
+                        fontSize: '0.75rem',
+                        borderRadius: '8px',
+                        border: selectedDefaults.has(cat) ? '1.5px solid var(--color-accent)' : '1px solid var(--glass-border)',
+                        background: selectedDefaults.has(cat) ? 'rgba(255,109,0,0.15)' : 'transparent',
+                        color: selectedDefaults.has(cat) ? 'var(--color-accent)' : 'var(--color-text-muted)',
+                        cursor: 'pointer',
+                        transition: 'all 0.15s ease',
+                        fontWeight: selectedDefaults.has(cat) ? 600 : 400
+                      }}
+                    >
+                      {cat}
+                    </button>
+                  ))}
+                </div>
+                <div style={{ display: 'flex', gap: '8px' }}>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (selectedDefaults.size === DEFAULT_CATEGORIES.length) setSelectedDefaults(new Set());
+                      else setSelectedDefaults(new Set(DEFAULT_CATEGORIES));
+                    }}
+                    style={{ flex: 1, padding: '8px', fontSize: '0.75rem', borderRadius: '8px', border: '1px solid var(--glass-border)', background: 'transparent', color: 'var(--color-text-muted)', cursor: 'pointer' }}
+                  >
+                    {selectedDefaults.size === DEFAULT_CATEGORIES.length ? 'Deselect All' : 'Select All'}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={loadDefaultCategories}
+                    disabled={loadingDefaults || selectedDefaults.size === 0}
+                    style={{ flex: 2, padding: '8px', fontSize: '0.8rem', fontWeight: 700, borderRadius: '8px', border: 'none', background: 'var(--color-accent)', color: '#fff', cursor: 'pointer', opacity: selectedDefaults.size === 0 ? 0.5 : 1 }}
+                  >
+                    {loadingDefaults ? 'Adding...' : `Add ${selectedDefaults.size} Categories`}
+                  </button>
+                </div>
+              </div>
+            )}
 
             {/* Add New Category row */}
             <div className="mb-add-category-box">
@@ -437,41 +707,85 @@ const MenuBuilder = () => {
                 </div>
               </div>
 
-              {/* Customizations Section */}
-              <div className="mb-customizations-card">
-                <h4 className="mb-customizations-title">Customizations</h4>
-                <div className="mb-customizations-row">
-                  <input 
-                    type="text" 
-                    className="mb-input-text"
-                    placeholder="Option 1" 
-                    value={newOptionText}
-                    onChange={(e) => setNewOptionText(e.target.value)}
-                    onKeyDown={(e) => e.key === 'Enter' && (e.preventDefault(), addCustomizationOption())}
-                  />
-                  <button 
-                    type="button" 
-                    className="mb-btn-action-small"
-                    onClick={addCustomizationOption}
-                  >
-                    Add Option
-                  </button>
+              {/* V2 Customizations Section */}
+              <div className="mb-customizations-card" style={{ padding: '20px', background: 'var(--color-surface)', borderRadius: '12px', border: '1px solid var(--glass-border)', marginTop: '24px' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
+                  <h4 className="mb-customizations-title" style={{ margin: 0, fontSize: '1.1rem' }}>Item Customizations</h4>
+                  
+                  {/* Template Applier */}
+                  {availableTemplates.length > 0 && (
+                    <div style={{ display: 'flex', gap: '8px' }}>
+                      <select 
+                        className="mb-input-text" 
+                        style={{ padding: '6px 12px', width: '200px' }}
+                        value={selectedTemplateId}
+                        onChange={(e) => setSelectedTemplateId(e.target.value)}
+                      >
+                        <option value="">-- Apply Template --</option>
+                        {availableTemplates.map(t => (
+                          <option key={t.id} value={t.id}>{t.name}</option>
+                        ))}
+                      </select>
+                      <button 
+                        type="button" 
+                        className="tables-btn-outline"
+                        style={{ padding: '6px 12px' }}
+                        onClick={() => applyTemplate(selectedTemplateId)}
+                        disabled={!selectedTemplateId}
+                      >
+                        Apply
+                      </button>
+                    </div>
+                  )}
                 </div>
 
-                {customizationOptions.length > 0 && (
-                  <div className="mb-options-tags">
-                    {customizationOptions.map((opt, idx) => (
-                      <span key={idx} className="mb-option-tag">
-                        {opt}
-                        <X 
-                          size={12} 
-                          className="mb-option-tag-remove"
-                          onClick={() => removeCustomizationOption(idx)}
-                        />
-                      </span>
-                    ))}
+                {localCustomizationGroups.length === 0 ? (
+                  <div style={{ textAlign: 'center', padding: '2rem 1rem', background: 'rgba(0,0,0,0.02)', borderRadius: '8px' }}>
+                    <p style={{ color: 'var(--color-text-muted)', margin: 0, fontSize: '0.9rem' }}>No customizations for this item.</p>
+                  </div>
+                ) : (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                    {localCustomizationGroups.map((group) => {
+                      const opts = localCustomizationOptions.filter(o => o.group_id === group.id);
+                      return (
+                        <div key={group.id} style={{ border: '1px solid var(--glass-border)', borderRadius: '8px', overflow: 'hidden' }}>
+                          <div style={{ padding: '12px', background: 'rgba(255,255,255,0.03)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                            <div>
+                              <span style={{ fontWeight: 600 }}>{group.name}</span>
+                              <span style={{ fontSize: '0.75rem', color: 'var(--color-text-muted)', marginLeft: '8px' }}>
+                                ({group.selection_type})
+                              </span>
+                            </div>
+                            <button type="button" className="mb-cat-btn delete" onClick={() => deleteLocalGroup(group.id)}>
+                              <Trash2 size={14} />
+                            </button>
+                          </div>
+                          
+                          {opts.length > 0 && (
+                            <div style={{ padding: '8px 12px', borderTop: '1px solid var(--glass-border)' }}>
+                              {opts.map(opt => (
+                                <div key={opt.id} style={{ display: 'flex', justifyContent: 'space-between', padding: '6px 0', fontSize: '0.85rem' }}>
+                                  <span>{opt.name} {opt.is_default && <span style={{ color: 'var(--color-accent)', fontSize: '0.7rem', marginLeft: '4px' }}>(Default)</span>}</span>
+                                  <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                                    <span style={{ color: 'var(--color-text-muted)' }}>
+                                      {opt.price_value > 0 ? `+₹${opt.price_value}` : 'Free'}
+                                    </span>
+                                    <button type="button" className="mb-cat-btn delete" onClick={() => deleteLocalOption(opt.id)}>
+                                      <Trash2 size={12} />
+                                    </button>
+                                  </div>
+                                </div>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })}
                   </div>
                 )}
+                <div style={{ marginTop: '16px', fontSize: '0.8rem', color: 'var(--color-text-muted)' }}>
+                  Note: Customizations are saved when you click "{editingItemId ? 'Update Item' : '+ Add Item'}".
+                </div>
               </div>
 
               {/* Action Buttons Row */}

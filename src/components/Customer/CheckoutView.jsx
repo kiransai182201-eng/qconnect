@@ -261,9 +261,7 @@ const CheckoutView = ({
               const item = items.find(i => i.id === cartItem.itemId);
               if (!item) return null;
 
-              const basePrice = parseFloat(item.price);
-              const addonsPrice = cartItem.customizations?.addons?.reduce((sum, a) => sum + parseFloat(a.price), 0) || 0;
-              const singleTotal = basePrice + addonsPrice;
+              const singleTotal = cartItem.unitTotal || parseFloat(item.price);
 
               return (
                 <div key={cartKey} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
@@ -278,34 +276,20 @@ const CheckoutView = ({
                     </div>
                     
                     {/* Render Customizations */}
-                    {cartItem.customizations && (
+                    {cartItem.customizations && cartItem.customizations.length > 0 && (
                       <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px 8px', marginTop: '3px', paddingLeft: '22px' }}>
-                        {cartItem.customizations.spiceLevel && (
-                          <span style={{ fontSize: '0.72rem', color: '#f87171', fontWeight: '600' }}>
-                            🌶️ {cartItem.customizations.spiceLevel}
-                          </span>
-                        )}
-                        {cartItem.customizations.sweetnessLevel && (
-                          <span style={{ fontSize: '0.72rem', color: '#60a5fa', fontWeight: '600' }}>
-                            🍬 {cartItem.customizations.sweetnessLevel}
-                          </span>
-                        )}
-                        {cartItem.customizations.addons?.map((addon, index) => (
-                          <span key={index} style={{ fontSize: '0.72rem', color: '#34d399', fontWeight: '600' }}>
-                            ➕ {addon.name}
+                        {cartItem.customizations.map((c, idx) => (
+                          <span key={idx} style={{ fontSize: '0.72rem', color: '#a3a3a3', fontWeight: '500' }}>
+                            • {c.groupName}: {c.optionName || c.text}
                           </span>
                         ))}
-                        {cartItem.customizations.specialInstructions && (
-                          <span style={{ fontSize: '0.72rem', color: '#d4d4d4', fontStyle: 'italic', width: '100%' }}>
-                            Note: "{cartItem.customizations.specialInstructions}"
-                          </span>
-                        )}
                       </div>
                     )}
                   </div>
-                  <span style={{ fontSize: '0.88rem', fontWeight: '700', color: '#ffffff', flexShrink: 0 }}>
+                  
+                  <div style={{ fontSize: '0.9rem', fontWeight: '800', color: '#ffffff' }}>
                     ₹{(singleTotal * cartItem.quantity).toFixed(2)}
-                  </span>
+                  </div>
                 </div>
               );
             })}

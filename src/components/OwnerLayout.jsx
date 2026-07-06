@@ -14,7 +14,8 @@ import {
   ClipboardList,
   Shield,
   X,
-  TableProperties
+  TableProperties,
+  Layers
 } from 'lucide-react';
 import { useLanguage } from '../contexts/LanguageContext';
 import './OwnerLayout.css';
@@ -48,6 +49,7 @@ const OwnerLayout = ({ activeTab }) => {
     if (path.includes('dashboard')) return 'dashboard';
     if (path.includes('tables')) return 'tables';
     if (path.includes('menu-builder')) return 'menu';
+    if (path.includes('templates')) return 'templates';
     if (path.includes('qr-code')) return 'qr-code';
     if (path.includes('orders')) return 'orders';
     if (path.includes('feedback')) return 'feedback';
@@ -63,6 +65,7 @@ const OwnerLayout = ({ activeTab }) => {
       dashboard: t.dashboard || 'Dashboard',
       tables: 'Tables',
       menu: t.menu || 'Menu Builder',
+      templates: 'Template Library',
       'qr-code': t.qrCodes || 'QR Codes',
       orders: t.orders || 'Kitchen Orders',
       feedback: t.feedback || 'Customer Feedbacks',
@@ -87,6 +90,7 @@ const OwnerLayout = ({ activeTab }) => {
       { id: 'dashboard', label: t.dashboard, path: '/dashboard', icon: LayoutGrid },
       { id: 'tables', label: 'Tables', path: '/tables', icon: TableProperties },
       { id: 'menu', label: t.menu, path: '/menu-builder', icon: Utensils },
+      { id: 'templates', label: 'Templates', path: '/templates', icon: Layers },
       { id: 'qr-code', label: t.qrCodes, path: '/qr-code', icon: QrCode },
       { id: 'orders', label: t.orders, path: '/orders', icon: ClipboardList },
       { id: 'feedback', label: t.feedback, path: '/feedback', icon: MessageSquare },

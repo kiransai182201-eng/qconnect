@@ -12,6 +12,7 @@ const Login = React.lazy(() => import('./pages/Login'));
 const ShopDetails = React.lazy(() => import('./pages/ShopDetails'));
 const QRCodeGeneration = React.lazy(() => import('./pages/QRCodeGeneration'));
 const MenuBuilder = React.lazy(() => import('./pages/MenuBuilder'));
+const TemplateLibrary = React.lazy(() => import('./pages/TemplateLibrary'));
 const Dashboard = React.lazy(() => import('./pages/Dashboard'));
 const Tables = React.lazy(() => import('./pages/Tables'));
 const CustomerMenu = React.lazy(() => import('./pages/CustomerMenu'));
@@ -101,6 +102,7 @@ function App() {
                 <Route path="/dashboard" element={<Dashboard />} />
                 <Route path="/tables" element={<Tables />} />
                 <Route path="/menu-builder" element={<MenuBuilder />} />
+                <Route path="/templates" element={<TemplateLibrary />} />
                 <Route path="/qr-code" element={<QRCodeGeneration />} />
                 <Route path="/orders" element={<Orders />} />
                 <Route path="/history" element={<BillHistory />} />

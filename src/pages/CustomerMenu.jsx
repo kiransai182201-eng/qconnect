@@ -356,13 +356,17 @@ const CustomerMenu = () => {
   }, [activeOrder?.id]);
 
   const getCartKey = (itemId, customizations) => {
-    if (!customizations) return itemId;
-    const { spiceLevel, sweetnessLevel, addons, specialInstructions } = customizations;
-    const addonIds = addons ? addons.map(a => a.id).sort().join(',') : '';
-    return `${itemId}_${spiceLevel || ''}_${sweetnessLevel || ''}_${addonIds}_${specialInstructions || ''}`;
+    if (!customizations || customizations.length === 0) return itemId;
+    // Sort customizations to ensure same selections yield same key
+    const sorted = [...customizations].sort((a, b) => {
+      if (a.groupId !== b.groupId) return a.groupId.localeCompare(b.groupId);
+      if (a.optionId && b.optionId) return a.optionId.localeCompare(b.optionId);
+      return 0;
+    });
+    return `${itemId}_${btoa(encodeURIComponent(JSON.stringify(sorted)))}`;
   };
 
-  const addToCart = (item, qty = 1, customizations = null) => {
+  const addToCart = (item, qty = 1, customizations = null, unitTotal = null) => {
     const resolvedItem = typeof item === 'string' ? items.find(i => i.id === item) : item;
     if (!resolvedItem) return;
 
@@ -375,7 +379,8 @@ const CustomerMenu = () => {
         [cartKey]: {
           itemId: resolvedItem.id,
           quantity: newQty,
-          customizations
+          customizations,
+          unitTotal: unitTotal || resolvedItem.price
         }
       };
     });
@@ -413,9 +418,8 @@ const CustomerMenu = () => {
       const cartItem = cart[cartKey];
       const item = items.find(i => i.id === cartItem.itemId);
       if (item) {
-        const basePrice = parseFloat(item.price);
-        const addonsPrice = cartItem.customizations?.addons?.reduce((sum, a) => sum + parseFloat(a.price), 0) || 0;
-        total += (basePrice + addonsPrice) * cartItem.quantity;
+        const singleTotal = cartItem.unitTotal || parseFloat(item.price);
+        total += singleTotal * cartItem.quantity;
       }
     });
     return total;
@@ -450,44 +454,19 @@ const CustomerMenu = () => {
         const mainItem = items.find(i => i.id === cartItem.itemId);
         if (!mainItem) return;
 
+        let customPrice = 0;
+        if (cartItem.customizations && cartItem.customizations.length > 0) {
+          cartItem.customizations.forEach(c => {
+            if (c.priceValue) customPrice += parseFloat(c.priceValue);
+          });
+        }
+
         cartItemsArr.push({
           item_id: cartItem.itemId,
-          quantity: cartItem.quantity
+          quantity: cartItem.quantity,
+          customizations_price: customPrice,
+          customizations: cartItem.customizations || []
         });
-
-        let itemNote = `${mainItem.name}`;
-        const custParts = [];
-
-        if (cartItem.customizations) {
-          const { spiceLevel, sweetnessLevel, addons, specialInstructions } = cartItem.customizations;
-          if (spiceLevel) custParts.push(`Spice: ${spiceLevel}`);
-          if (sweetnessLevel) custParts.push(`Sweetness: ${sweetnessLevel}`);
-          if (specialInstructions) custParts.push(`Note: "${specialInstructions}"`);
-
-          if (addons && addons.length > 0) {
-            const addonNames = [];
-            addons.forEach(addon => {
-              const dbAddonItem = items.find(i => i.name.toLowerCase() === addon.name.toLowerCase());
-              if (dbAddonItem) {
-                cartItemsArr.push({
-                  item_id: dbAddonItem.id,
-                  quantity: cartItem.quantity
-                });
-                addonNames.push(`${addon.name} (+₹${addon.price})`);
-              } else {
-                addonNames.push(`${addon.name} (Not in DB menu)`);
-              }
-            });
-            if (addonNames.length > 0) {
-              custParts.push(`Add-ons: [${addonNames.join(', ')}]`);
-            }
-          }
-        }
-
-        if (custParts.length > 0) {
-          itemNote += ` (${custParts.join(' | ')})`;
-          customizationNotes.push(itemNote);
-        }
       });
 
       if (cartItemsArr.length === 0) {
@@ -495,10 +474,6 @@ const CustomerMenu = () => {
       }
 
       let finalNotes = orderNotes;
-      if (customizationNotes.length > 0) {
-        const serializedCustoms = `[CUSTOMIZATIONS: ${customizationNotes.join('; ')}]`;
-        finalNotes = finalNotes ? `${finalNotes} ${serializedCustoms}` : serializedCustoms;
-      }
 
       // Try RPC with payment_method first, then fall back to old signature on any error
       let orderData, orderError;
@@ -555,7 +530,7 @@ const CustomerMenu = () => {
       setActiveOrder(completeOrder || orderData);
       setActiveTab('track');
       setCart({});
-      localStorage.removeItem(`cart_${shopId}`);
+      localStorage.removeItem(`cart_${effectiveShopId}`);
       setIsCartOpen(false);
       setIsCheckoutOpen(false);
     } catch (err) {

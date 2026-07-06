@@ -81,16 +81,11 @@ const Orders = () => {
 
   // Helper to resolve customization text from metadata
   const getItemCustomizations = (item) => {
-    if (item.customizations) {
-      if (typeof item.customizations === 'object') {
-        const parts = [];
-        if (item.customizations.spice_level) parts.push(item.customizations.spice_level);
-        if (item.customizations.addons) {
-          item.customizations.addons.forEach(a => parts.push(a.name));
-        }
-        return parts.join(', ');
-      }
-      return String(item.customizations);
+    if (item.customizations && Array.isArray(item.customizations)) {
+      return item.customizations.map(c => {
+        const priceTag = c.priceValue > 0 ? ` (+₹${c.priceValue.toFixed(2)})` : '';
+        return `${c.groupName}: ${c.optionName || c.text}${priceTag}`;
+      }).join(' | ');
     }
     return '';
   };
