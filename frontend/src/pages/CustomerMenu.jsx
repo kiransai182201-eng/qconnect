@@ -243,6 +243,12 @@ const CustomerMenu = () => {
             }
           }
 
+          if (currentShop.status !== 'published' && currentShop.status !== 'active') {
+            setErrorDiagnostics(`The restaurant "${currentShop.name}" is currently offline or closed.`);
+            setLoading(false);
+            return;
+          }
+
           setShop(currentShop);
           const [catsRes, itmsRes] = await Promise.all([
             supabase.from('categories').select('*').eq('shop_id', currentShop.id),
@@ -253,21 +259,17 @@ const CustomerMenu = () => {
           if (catsRes.data) setCategories(catsRes.data);
           if (itmsRes.data) setItems(itmsRes.data);
 
-          // Sync last placed order status
+          // Sync last placed order status securely
           const lastOrderId = localStorage.getItem(`last_order_id_${currentShop.id}`);
           if (lastOrderId) {
-            const { data: order } = await supabase
-              .from('orders')
-              .select('*, order_items(*)')
-              .eq('id', lastOrderId)
-              .maybeSingle();
+            const { data: order, error: orderErr } = await supabase.rpc('get_order_details', { p_order_id: lastOrderId });
 
-            if (order && order.status !== 'delivered' && order.status !== 'rejected') {
+            if (order && !orderErr && order.status !== 'delivered' && order.status !== 'rejected') {
               setActiveOrder(order);
             }
           }
         } else {
-          setErrorDiagnostics(`Menu for "${cleanShopId}" is currently unavailable or invalid link.`);
+          setErrorDiagnostics(`Restaurant not found for ID "${cleanShopId}". Please check the QR code link.`);
         }
       } catch (err) {
         console.error('[QR Audit] Unexpected error fetching menu:', err);
@@ -547,14 +549,10 @@ const CustomerMenu = () => {
       localStorage.setItem('last_order_placed', getNow().toString());
       localStorage.setItem(`last_order_id_${shop.id}`, orderData.id);
 
-      // Fetch the new order details
-      const { data: completeOrder } = await supabase
-        .from('orders')
-        .select('*, order_items(*)')
-        .eq('id', orderData.id)
-        .single();
+      // Fetch the new order details using secure RPC
+      const { data: completeOrder } = await supabase.rpc('get_order_details', { p_order_id: orderData.id });
 
-      setActiveOrder(completeOrder);
+      setActiveOrder(completeOrder || orderData);
       setActiveTab('track');
       setCart({});
       localStorage.removeItem(`cart_${shopId}`);
