@@ -253,7 +253,7 @@ const CustomerMenu = () => {
           const [catsRes, itmsRes] = await Promise.all([
             supabase.from('categories').select('*').eq('shop_id', currentShop.id),
             supabase.from('items').select('*, categories!inner(shop_id)').eq('categories.shop_id', currentShop.id),
-            supabase.from('menu_views').insert([{ shop_id: currentShop.id }]).catch(() => null)
+            supabase.from('menu_views').insert([{ shop_id: currentShop.id }])
           ]);
 
           if (catsRes.data) setCategories(catsRes.data);

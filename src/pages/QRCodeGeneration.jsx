@@ -533,22 +533,19 @@ const QRCodeGeneration = () => {
                     }}
                     aria-label={`Delete table ${table.table_number}`}
                     style={{ 
-                      background: 'none', 
+                      background: 'transparent', 
                       border: 'none', 
                       color: '#ef4444', 
                       cursor: 'pointer', 
                       display: 'flex', 
                       alignItems: 'center', 
-                      padding: '4px', 
-                      borderRadius: '4px', 
-                      transition: 'background-color 0.2s',
-                      position: 'relative',
+                      padding: '12px', /* Larger touch target for mobile */
+                      margin: '-8px', /* Negative margin to maintain layout */
+                      borderRadius: '8px',
                       zIndex: 10
                     }}
-                    onMouseOver={e => e.currentTarget.style.backgroundColor = 'rgba(239, 68, 68, 0.1)'}
-                    onMouseOut={e => e.currentTarget.style.backgroundColor = 'transparent'}
                   >
-                    <Trash2 size={16} style={{ pointerEvents: 'none' }} />
+                    <Trash2 size={18} style={{ pointerEvents: 'none' }} />
                   </button>
                 </div>
               </div>
