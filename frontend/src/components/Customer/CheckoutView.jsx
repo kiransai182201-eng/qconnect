@@ -146,10 +146,7 @@ const CheckoutView = ({
           <input 
             type="text"
             value={manualTableNumber}
-            onChange={(e) => {
-              setManualTableNumber(e.target.value);
-              if (tableError) setTableError('');
-            }}
+            readOnly={true}
             placeholder="e.g. 5, T-07, or Takeaway"
             style={{
               width: '100%',
@@ -161,10 +158,11 @@ const CheckoutView = ({
               fontSize: '0.95rem',
               fontWeight: '600',
               boxSizing: 'border-box',
-              outline: 'none'
+              outline: 'none',
+              cursor: 'not-allowed',
+              opacity: '0.9'
             }}
             aria-label="Confirm Table number"
-            autoFocus={!initialTable}
           />
         </section>
 

@@ -476,8 +476,8 @@ const MenuBuilder = () => {
 
   if (published) {
     return (
-      <div style={{ minHeight: '80vh', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '2rem', textAlign: 'center', backgroundColor: '#0B0B0C' }}>
-        <div style={{ background: '#141416', border: '1px solid rgba(212, 160, 42, 0.25)', padding: '4rem 2rem', borderRadius: '24px', maxWidth: '500px' }}>
+      <div style={{ minHeight: '80vh', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '2rem', textAlign: 'center', backgroundColor: 'var(--mb-bg)' }}>
+        <div style={{ background: 'var(--mb-card-bg)', border: '1px solid rgba(212, 160, 42, 0.25)', padding: '4rem 2rem', borderRadius: '24px', maxWidth: '500px' }}>
           <div style={{ background: 'rgba(212,160,42,0.1)', width: '80px', height: '80px', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 2rem' }}>
             <Sparkles size={40} color="#D4A02A" />
           </div>
@@ -853,7 +853,7 @@ const MenuBuilder = () => {
             </div>
 
             {items.filter(item => item.category_id === activeCategoryId).length === 0 && (
-              <div style={{ textAlign: 'center', padding: '32px', background: '#141416', border: '1px solid rgba(255,255,255,0.08)', borderRadius: '14px', color: '#A0A0A0', fontSize: '0.88rem' }}>
+              <div style={{ textAlign: 'center', padding: '32px', background: 'var(--mb-card-bg)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: '14px', color: '#A0A0A0', fontSize: '0.88rem' }}>
                 No items in this category yet. Use the form above to add some!
               </div>
             )}
@@ -920,7 +920,7 @@ const MenuBuilder = () => {
       {/* Delete Item Confirmation Modal */}
       {itemToDelete && (
         <div style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(0,0,0,0.7)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 300 }}>
-          <div style={{ background: '#141416', border: '1px solid rgba(239, 68, 68, 0.4)', borderRadius: '16px', maxWidth: '380px', width: '90%', padding: '24px' }}>
+          <div style={{ background: 'var(--mb-card-bg)', border: '1px solid rgba(239, 68, 68, 0.4)', borderRadius: '16px', maxWidth: '380px', width: '90%', padding: '24px' }}>
             <h3 style={{ margin: '0 0 12px 0', fontSize: '1.25rem', fontWeight: '800', color: '#ef4444' }}>Delete Menu Item?</h3>
             <p style={{ margin: '0 0 20px 0', fontSize: '0.88rem', color: '#A0A0A0', lineHeight: '1.5' }}>
               Are you sure you want to permanently delete <strong>"{itemToDelete.name}"</strong>?
@@ -946,7 +946,7 @@ const MenuBuilder = () => {
       {/* Delete Category Confirmation Modal */}
       {categoryToDelete && (
         <div style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(0,0,0,0.7)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 300 }}>
-          <div style={{ background: '#141416', border: '1px solid rgba(239, 68, 68, 0.4)', borderRadius: '16px', maxWidth: '380px', width: '90%', padding: '24px' }}>
+          <div style={{ background: 'var(--mb-card-bg)', border: '1px solid rgba(239, 68, 68, 0.4)', borderRadius: '16px', maxWidth: '380px', width: '90%', padding: '24px' }}>
             <h3 style={{ margin: '0 0 12px 0', fontSize: '1.25rem', fontWeight: '800', color: '#ef4444' }}>Delete Category?</h3>
             <p style={{ margin: '0 0 8px 0', fontSize: '0.88rem', color: '#FFFFFF', lineHeight: '1.5' }}>
               Are you sure you want to delete <strong>"{categoryToDelete.name}"</strong>?
