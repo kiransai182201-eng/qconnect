@@ -58,23 +58,20 @@ const Tables = () => {
   // Determine Table Status dynamically based on active orders
   const getTableStatus = (tableNum) => {
     const tableOrders = orders.filter(o => String(o.table_number) === String(tableNum));
-    if (tableOrders.length === 0) return 'available';
-
-    // Find the latest active order (context is already ordered by created_at desc)
-    const latestOrder = tableOrders[0];
     
-    if (latestOrder.status === 'pending' || latestOrder.status === 'accepted') {
-      return 'occupied';
+    if (tableOrders.length > 0) {
+      const latestOrder = tableOrders[0];
+      if (latestOrder.status === 'pending' || latestOrder.status === 'accepted') return 'occupied';
+      if (latestOrder.status === 'preparing') return 'preparing';
+      if (latestOrder.status === 'ready') return 'payment-pending';
+      if (latestOrder.status === 'delivered') return 'completed';
     }
-    if (latestOrder.status === 'preparing') {
-      return 'preparing';
+
+    const tableInfo = tables.find(t => String(t.table_number) === String(tableNum));
+    if (tableInfo && tableInfo.current_status === 'scanning') {
+      return 'scanning';
     }
-    if (latestOrder.status === 'ready') {
-      return 'payment-pending';
-    }
-    if (latestOrder.status === 'delivered') {
-      return 'completed';
-    }
+
     return 'available';
   };
 
@@ -174,6 +171,15 @@ const Tables = () => {
 
       if (error) throw error;
 
+      // Step 3: Reset current_status to available in shop_tables
+      const { error: tableError } = await supabase
+        .from('shop_tables')
+        .update({ current_status: 'available' })
+        .eq('shop_id', shop.id)
+        .eq('table_number', selectedTable.table_number);
+        
+      if (tableError) throw tableError;
+
       // Update the context orders list (filtering out the newly delivered orders)
       if (setOrders) {
         setOrders(prev => prev.filter(o => 
@@ -216,6 +222,10 @@ const Tables = () => {
     occupied: {
       title: 'Table is occupied',
       desc: 'Guests are currently dining.'
+    },
+    scanning: {
+      title: 'Browsing Menu',
+      desc: 'Guests are scanning the menu.'
     },
     preparing: {
       title: 'Food is preparing',
