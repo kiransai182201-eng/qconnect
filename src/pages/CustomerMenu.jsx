@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { useParams, useSearchParams } from 'react-router-dom';
+import { useParams, useSearchParams, useNavigate } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
 import { useLanguage } from '../contexts/LanguageContext';
 import { Bell, MessageSquare, X, CheckCircle, Star, AlertTriangle, BookOpen, ShoppingBag, MapPin } from 'lucide-react';
@@ -58,6 +58,7 @@ const CustomerMenu = () => {
 
   const [shop, setShop] = useState(null);
   const [categories, setCategories] = useState([]);
+  const navigate = useNavigate();
   const [items, setItems] = useState([]);
   const [loading, setLoading] = useState(true);
   const [errorDiagnostics, setErrorDiagnostics] = useState(null);
@@ -122,24 +123,8 @@ const CustomerMenu = () => {
     if (!tableId || !activeOrder) return;
     const tableChannel = supabase.channel(`customer-table-${tableId}`)
       .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'shop_tables', filter: `id=eq.${tableId}` }, async (payload) => {
-        if (payload.new.current_status === 'available' && hiddenReceiptRef.current) {
-          try {
-            await new Promise(r => setTimeout(r, 300));
-            const canvas = await html2canvas(hiddenReceiptRef.current, {
-              scale: 2,
-              useCORS: true,
-              backgroundColor: '#faf8f5'
-            });
-            const dataUrl = canvas.toDataURL('image/png');
-            const link = document.createElement('a');
-            link.href = dataUrl;
-            link.download = `receipt-${activeOrder.order_number}.png`;
-            document.body.appendChild(link);
-            link.click();
-            document.body.removeChild(link);
-          } catch (err) {
-            console.error('Error generating receipt on customer side:', err);
-          }
+        if (payload.new.current_status === 'available') {
+          navigate(`/receipt/${activeOrder.id}`);
         }
       })
       .subscribe();
@@ -217,7 +202,7 @@ const CustomerMenu = () => {
             setTableNumber(String(tableData.table_number));
             setTableId(tableData.id);
             if (tableData.current_status === 'available') {
-              await supabase.from('shop_tables').update({ current_status: 'scanning' }).eq('id', tableData.id);
+              await supabase.from('shop_tables').update({ current_status: 'occupied' }).eq('id', tableData.id);
             }
           } else {
             // 2. If not a table token, try to look up as a shop_id directly
@@ -278,7 +263,7 @@ const CustomerMenu = () => {
                 }
                 setTableId(maybeTable.id);
                 if (maybeTable.current_status === 'available') {
-                  await supabase.from('shop_tables').update({ current_status: 'scanning' }).eq('id', maybeTable.id);
+                  await supabase.from('shop_tables').update({ current_status: 'occupied' }).eq('id', maybeTable.id);
                 }
               }
             }
