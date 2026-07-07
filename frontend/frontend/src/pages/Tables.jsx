@@ -53,23 +53,6 @@ const Tables = () => {
 
   useEffect(() => {
     fetchTables();
-    
-    if (!shop) return;
-    
-    const tablesSubscription = supabase
-      .channel('shop_tables_changes')
-      .on('postgres_changes', 
-        { event: '*', schema: 'public', table: 'shop_tables', filter: `shop_id=eq.${shop.id}` }, 
-        (payload) => {
-          console.log('Tables updated:', payload);
-          fetchTables();
-        }
-      )
-      .subscribe();
-
-    return () => {
-      supabase.removeChannel(tablesSubscription);
-    };
   }, [shop]);
 
   // Determine Table Status dynamically based on active orders
@@ -85,9 +68,6 @@ const Tables = () => {
     }
 
     const tableInfo = tables.find(t => String(t.table_number) === String(tableNum));
-    if (tableInfo && tableInfo.current_status === 'occupied') {
-      return 'occupied';
-    }
     if (tableInfo && tableInfo.current_status === 'scanning') {
       return 'scanning';
     }
