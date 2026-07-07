@@ -797,8 +797,8 @@ const LandingPage = () => {
               <li>Basic analytics</li>
               <li>Email support</li>
             </ul>
-            <button onClick={handleCtaClick} className="plan-btn plan-btn-outline" style={{ width: '100%' }}>
-              {isLoggedIn ? 'Go to Dashboard' : 'Get Started'}
+            <button className="plan-btn plan-btn-outline" style={{ width: '100%', opacity: 0.8, cursor: 'not-allowed' }}>
+              Coming Soon...
             </button>
           </div>
           
@@ -815,8 +815,8 @@ const LandingPage = () => {
               <li>Real-time order dashboard</li>
               <li>Priority support</li>
             </ul>
-            <button onClick={handleCtaClick} className="plan-btn plan-btn-fill" style={{ width: '100%' }}>
-              {isLoggedIn ? 'Go to Dashboard' : 'Get Started'}
+            <button className="plan-btn plan-btn-fill" style={{ width: '100%', opacity: 0.8, cursor: 'not-allowed' }}>
+              Coming Soon...
             </button>
           </div>
           
@@ -833,8 +833,8 @@ const LandingPage = () => {
               <li>Custom integrations</li>
               <li>99.9% uptime SLA</li>
             </ul>
-            <button onClick={handleCtaClick} className="plan-btn plan-btn-outline" style={{ width: '100%' }}>
-              {isLoggedIn ? 'Go to Dashboard' : 'Contact Sales'}
+            <button className="plan-btn plan-btn-outline" style={{ width: '100%', opacity: 0.8, cursor: 'not-allowed' }}>
+              Coming Soon...
             </button>
           </div>
         </div>
