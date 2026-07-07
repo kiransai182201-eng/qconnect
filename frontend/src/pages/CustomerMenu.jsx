@@ -1,0 +1,1077 @@
+import { useState, useEffect, useCallback, useRef } from 'react';
+import { useParams, useSearchParams } from 'react-router-dom';
+import { supabase } from '../lib/supabase';
+import { useLanguage } from '../contexts/LanguageContext';
+import { Bell, MessageSquare, X, CheckCircle, Star, AlertTriangle, BookOpen, ShoppingBag, MapPin } from 'lucide-react';
+import '../customer-menu.css';
+import html2canvas from 'html2canvas';
+
+import MenuHeader from '../components/Customer/MenuHeader';
+import MenuGrid from '../components/Customer/MenuGrid';
+import Cart from '../components/Customer/Cart';
+import ActiveOrderTracker from '../components/Customer/ActiveOrderTracker';
+import ItemDetailModal from '../components/Customer/ItemDetailModal';
+import CheckoutView from '../components/Customer/CheckoutView';
+
+const getNow = () => Date.now();
+
+const isISTDayTime = () => {
+  try {
+    const formatter = new Intl.DateTimeFormat('en-US', {
+      timeZone: 'Asia/Kolkata',
+      hour: 'numeric',
+      hour12: false
+    });
+    const hour = parseInt(formatter.format(new Date()), 10);
+    return hour >= 6 && hour < 18;
+  } catch {
+    const utcDate = new Date();
+    const utcHours = utcDate.getUTCHours();
+    const utcMinutes = utcDate.getUTCMinutes();
+    let istHours = (utcHours + 5) % 24;
+    let istMinutes = utcMinutes + 30;
+    if (istMinutes >= 60) {
+      istHours = (istHours + 1) % 24;
+    }
+    return istHours >= 6 && istHours < 18;
+  }
+};
+
+const getIcon = (name, type = 'item') => {
+  const lower = name.toLowerCase();
+  if (lower.includes('coffee') || lower.includes('espresso') || lower.includes('flat white')) return '☕';
+  if (lower.includes('cappuccino') || lower.includes('latte') || lower.includes('milk')) return '🥛';
+  if (lower.includes('cold') || lower.includes('ice')) return '🧊';
+  if (lower.includes('macchiato') || lower.includes('dessert') || lower.includes('cake')) return '🍮';
+  if (lower.includes('tea')) return '🍵';
+  if (lower.includes('drink') || lower.includes('beverage')) return '🥥';
+  return type === 'category' ? '🍽️' : '🍲';
+};
+
+const CustomerMenu = () => {
+  const { shopId: rawPathShopId } = useParams();
+  const [searchParams] = useSearchParams();
+  const { lang, setLang, t } = useLanguage();
+
+  const effectiveShopId = rawPathShopId || searchParams.get('shop') || searchParams.get('shopId') || searchParams.get('s');
+  const effectiveTableParam = searchParams.get('table') || searchParams.get('table_number') || searchParams.get('t');
+
+  const [shop, setShop] = useState(null);
+  const [categories, setCategories] = useState([]);
+  const [items, setItems] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [errorDiagnostics, setErrorDiagnostics] = useState(null);
+  
+  const [searchQuery, setSearchQuery] = useState('');
+  const [activeCategoryId, setActiveCategoryId] = useState('all');
+
+  const [isDarkMode, setIsDarkMode] = useState(() => !isISTDayTime());
+  const [isAnimatingTheme, setIsAnimatingTheme] = useState(false);
+
+  const [tableNumber, setTableNumber] = useState('Unknown');
+  const [tableId, setTableId] = useState(null);
+  const [manualTableNumber, setManualTableNumber] = useState('');
+  const [activeTab, setActiveTab] = useState('menu'); // 'menu' or 'track'
+  
+  // Cartesian persistence in localStorage (sanitized for new customizations object structure)
+  const cartKeyName = `cart_${effectiveShopId || 'default'}`;
+  const [cart, setCart] = useState(() => {
+    try {
+      const saved = localStorage.getItem(cartKeyName);
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        const sanitized = {};
+        Object.keys(parsed).forEach(key => {
+          if (typeof parsed[key] === 'number') {
+            sanitized[key] = {
+              itemId: key,
+              quantity: parsed[key],
+              customizations: null
+            };
+          } else if (parsed[key] && typeof parsed[key] === 'object' && parsed[key].itemId) {
+            sanitized[key] = parsed[key];
+          }
+        });
+        return sanitized;
+      }
+    } catch (err) {
+      console.error(err);
+    }
+    return {};
+  });
+  
+  useEffect(() => {
+    if (effectiveShopId) {
+      localStorage.setItem(`cart_${effectiveShopId}`, JSON.stringify(cart));
+    }
+  }, [cart, effectiveShopId]);
+
+  const [activeItemForDetail, setActiveItemForDetail] = useState(null);
+  const [isCartOpen, setIsCartOpen] = useState(false);
+  const [orderNotes, setOrderNotes] = useState('');
+  const [isPlacingOrder, setIsPlacingOrder] = useState(false);
+  const [isCheckoutOpen, setIsCheckoutOpen] = useState(false);
+
+  const [activeOrder, setActiveOrder] = useState(null);
+  const [isTableDeactivated, setIsTableDeactivated] = useState(false);
+
+  const hiddenReceiptRef = useRef(null);
+
+  // Table Realtime Subscription for Receipt Download
+  useEffect(() => {
+    if (!tableId || !activeOrder) return;
+    const tableChannel = supabase.channel(`customer-table-${tableId}`)
+      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'shop_tables', filter: `id=eq.${tableId}` }, async (payload) => {
+        if (payload.new.current_status === 'available' && hiddenReceiptRef.current) {
+          try {
+            await new Promise(r => setTimeout(r, 300));
+            const canvas = await html2canvas(hiddenReceiptRef.current, {
+              scale: 2,
+              useCORS: true,
+              backgroundColor: '#faf8f5'
+            });
+            const dataUrl = canvas.toDataURL('image/png');
+            const link = document.createElement('a');
+            link.href = dataUrl;
+            link.download = `receipt-${activeOrder.order_number}.png`;
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+          } catch (err) {
+            console.error('Error generating receipt on customer side:', err);
+          }
+        }
+      })
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(tableChannel);
+    };
+  }, [tableId, activeOrder]);
+
+  // Waiter & Feedback state
+  const [isCallingWaiter, setIsCallingWaiter] = useState(false);
+  const [showWaiterToast, setShowWaiterToast] = useState(false);
+  const [isFeedbackOpen, setIsFeedbackOpen] = useState(false);
+  const [feedbackRating, setFeedbackRating] = useState(5);
+  const [feedbackMessage, setFeedbackMessage] = useState('');
+  const [feedbackSuccess, setFeedbackSuccess] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
+  // Unavailable items modal state
+  const [unavailableItems, setUnavailableItems] = useState([]);
+
+  const isUUID = (str) => /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(str);
+
+  // Theme Sync
+  useEffect(() => {
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible') {
+        const expectedIsDay = isISTDayTime();
+        if (isDarkMode === expectedIsDay) {
+          setIsAnimatingTheme(true);
+          setTimeout(() => {
+            setIsDarkMode(!expectedIsDay);
+            setTimeout(() => setIsAnimatingTheme(false), 800);
+          }, 300);
+        }
+      }
+    };
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    return () => document.removeEventListener('visibilitychange', handleVisibilityChange);
+  }, [isDarkMode]);
+
+  useEffect(() => {
+    const fetchShopAndMenu = async () => {
+      setLoading(true);
+      setErrorDiagnostics(null);
+
+      if (!effectiveShopId) {
+        console.error('[QR Audit] No shop ID provided in URL parameters or route.');
+        setErrorDiagnostics('No restaurant identifier found in link. Please scan a valid QR code.');
+        setLoading(false);
+        return;
+      }
+
+      const cleanShopId = decodeURIComponent(effectiveShopId).trim();
+      let currentShop = null;
+
+      try {
+        if (isUUID(cleanShopId)) {
+          // 1. Try to look up by table_token.
+          const { data: tableData, error: tableErr } = await supabase
+            .from('shop_tables')
+            .select('*, shops(*)')
+            .eq('table_token', cleanShopId)
+            .maybeSingle();
+
+          if (tableErr) console.warn('[QR Audit] table_token query error:', tableErr);
+
+          if (tableData) {
+            if (!tableData.is_active) {
+              setIsTableDeactivated(true);
+              setLoading(false);
+              return;
+            }
+            currentShop = tableData.shops;
+            setTableNumber(String(tableData.table_number));
+            setTableId(tableData.id);
+            if (tableData.current_status === 'available') {
+              await supabase.from('shop_tables').update({ current_status: 'scanning' }).eq('id', tableData.id);
+            }
+          } else {
+            // 2. If not a table token, try to look up as a shop_id directly
+            const { data: shopData, error: shopErr } = await supabase
+              .from('shops')
+              .select('*')
+              .eq('id', cleanShopId)
+              .maybeSingle();
+
+            if (shopErr) console.warn('[QR Audit] shop_id query error:', shopErr);
+
+            if (shopData) {
+              currentShop = shopData;
+            }
+          }
+        } else {
+          // 3. Look up by owner_unique_id (slug) case-insensitively using .ilike
+          const { data: shopData, error: shopErr } = await supabase
+            .from('shops')
+            .select('*')
+            .ilike('owner_unique_id', cleanShopId)
+            .maybeSingle();
+
+          if (shopErr) console.warn('[QR Audit] owner_unique_id query error:', shopErr);
+
+          if (shopData) {
+            currentShop = shopData;
+          } else {
+            // Fallback: exact match lookup
+            const { data: exactShop } = await supabase
+              .from('shops')
+              .select('*')
+              .eq('owner_unique_id', cleanShopId)
+              .maybeSingle();
+
+            if (exactShop) currentShop = exactShop;
+          }
+        }
+
+        if (currentShop) {
+          // Resolve table number from URL search param if not already set by table_token
+          if (effectiveTableParam) {
+            setTableNumber(effectiveTableParam);
+            const parsedNum = parseInt(effectiveTableParam, 10);
+            if (!isNaN(parsedNum)) {
+              const { data: maybeTable } = await supabase
+                .from('shop_tables')
+                .select('*')
+                .eq('shop_id', currentShop.id)
+                .eq('table_number', parsedNum)
+                .maybeSingle();
+
+              if (maybeTable) {
+                if (!maybeTable.is_active) {
+                  setIsTableDeactivated(true);
+                  setLoading(false);
+                  return;
+                }
+                setTableId(maybeTable.id);
+                if (maybeTable.current_status === 'available') {
+                  await supabase.from('shop_tables').update({ current_status: 'scanning' }).eq('id', maybeTable.id);
+                }
+              }
+            }
+          }
+
+          if (currentShop.status !== 'published' && currentShop.status !== 'active') {
+            setErrorDiagnostics(`The restaurant "${currentShop.name}" is currently offline or closed.`);
+            setLoading(false);
+            return;
+          }
+
+          setShop(currentShop);
+          const [catsRes, itmsRes] = await Promise.all([
+            supabase.from('categories').select('*').eq('shop_id', currentShop.id),
+            supabase.from('items').select('*, categories!inner(shop_id)').eq('categories.shop_id', currentShop.id),
+            supabase.from('menu_views').insert([{ shop_id: currentShop.id }])
+          ]);
+
+          if (catsRes.data) setCategories(catsRes.data);
+          if (itmsRes.data) setItems(itmsRes.data);
+
+          // Sync last placed order status securely
+          const lastOrderId = localStorage.getItem(`last_order_id_${currentShop.id}`);
+          if (lastOrderId) {
+            const { data: order, error: orderErr } = await supabase.rpc('get_order_details', { p_order_id: lastOrderId });
+
+            if (order && !orderErr && order.status !== 'delivered' && order.status !== 'rejected') {
+              setActiveOrder(order);
+            }
+          }
+        } else {
+          setErrorDiagnostics(`Restaurant not found for ID "${cleanShopId}". Please check the QR code link.`);
+        }
+      } catch (err) {
+        console.error('[QR Audit] Unexpected error fetching menu:', err);
+        setErrorDiagnostics(err.message || 'Failed to fetch menu data.');
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchShopAndMenu();
+  }, [rawPathShopId, searchParams, effectiveShopId, effectiveTableParam]);
+
+  // Realtime Subscriptions
+  useEffect(() => {
+    if (!shop) return;
+    
+    const shopChannel = supabase.channel(`customer-shop-${shop.id}`)
+      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'shops', filter: `id=eq.${shop.id}` }, (payload) => {
+        setShop(payload.new);
+      })
+      .subscribe();
+      
+    const catChannel = supabase.channel(`customer-categories-${shop.id}`)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'categories', filter: `shop_id=eq.${shop.id}` }, (payload) => {
+        if (payload.eventType === 'INSERT') setCategories(prev => [...prev, payload.new]);
+        else if (payload.eventType === 'UPDATE') setCategories(prev => prev.map(c => c.id === payload.new.id ? payload.new : c));
+        else if (payload.eventType === 'DELETE') setCategories(prev => prev.filter(c => c.id !== payload.old.id));
+      })
+      .subscribe();
+      
+    const itemsChannel = supabase.channel(`customer-items-${shop.id}`)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'items' }, async (payload) => {
+        if (payload.eventType === 'INSERT') {
+          const { data: cat } = await supabase.from('categories').select('shop_id').eq('id', payload.new.category_id).single();
+          if (cat && cat.shop_id === shop.id) {
+            setItems(prev => [...prev, { ...payload.new, categories: { shop_id: shop.id } }]);
+          }
+        } else if (payload.eventType === 'UPDATE') {
+          setItems(prev => prev.map(item => item.id === payload.new.id ? { ...item, ...payload.new } : item));
+          // Auto-remove from cart if item became unavailable
+          if (payload.new.is_available === false) {
+            setCart(prev => {
+              const newCart = { ...prev };
+              delete newCart[payload.new.id];
+              return newCart;
+            });
+          }
+        } else if (payload.eventType === 'DELETE') {
+          setItems(prev => prev.filter(item => item.id !== payload.old.id));
+          setCart(prev => {
+            const newCart = { ...prev };
+            delete newCart[payload.old.id];
+            return newCart;
+          });
+        }
+      })
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(shopChannel);
+      supabase.removeChannel(catChannel);
+      supabase.removeChannel(itemsChannel);
+    };
+  }, [shop]);
+
+  // Use a ref to track order ID so the subscription doesn't re-fire on every status update
+  const activeOrderIdRef = useRef(null);
+  useEffect(() => {
+    const orderId = activeOrder?.id;
+    // Only re-subscribe if the order ID itself changed (not just status updates)
+    if (!orderId || orderId === activeOrderIdRef.current) return;
+    activeOrderIdRef.current = orderId;
+
+    const channel = supabase.channel(`customer-order-${orderId}`)
+      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'orders', filter: `id=eq.${orderId}` }, (payload) => {
+        setActiveOrder(prev => ({ ...prev, ...payload.new }));
+      })
+      .subscribe();
+      
+    return () => {
+      supabase.removeChannel(channel);
+      activeOrderIdRef.current = null;
+    };
+  }, [activeOrder?.id]);
+
+  const getCartKey = (itemId, customizations) => {
+    if (!customizations || customizations.length === 0) return itemId;
+    // Sort customizations to ensure same selections yield same key
+    const sorted = [...customizations].sort((a, b) => {
+      if (a.groupId !== b.groupId) return a.groupId.localeCompare(b.groupId);
+      if (a.optionId && b.optionId) return a.optionId.localeCompare(b.optionId);
+      return 0;
+    });
+    return `${itemId}_${btoa(encodeURIComponent(JSON.stringify(sorted)))}`;
+  };
+
+  const addToCart = (item, qty = 1, customizations = null, unitTotal = null) => {
+    const resolvedItem = typeof item === 'string' ? items.find(i => i.id === item) : item;
+    if (!resolvedItem) return;
+
+    const cartKey = getCartKey(resolvedItem.id, customizations);
+    setCart(prev => {
+      const existing = prev[cartKey];
+      const newQty = (existing ? existing.quantity : 0) + qty;
+      return {
+        ...prev,
+        [cartKey]: {
+          itemId: resolvedItem.id,
+          quantity: newQty,
+          customizations,
+          unitTotal: unitTotal || resolvedItem.price
+        }
+      };
+    });
+  };
+
+  const removeFromCart = (itemId, customizations = null) => {
+    setCart(prev => {
+      const newCart = { ...prev };
+      const targetKey = customizations
+        ? getCartKey(itemId, customizations)
+        : Object.keys(newCart).find(key => key === itemId || key.startsWith(`${itemId}_`));
+
+      if (targetKey && newCart[targetKey]) {
+        if (newCart[targetKey].quantity > 1) {
+          newCart[targetKey] = {
+            ...newCart[targetKey],
+            quantity: newCart[targetKey].quantity - 1
+          };
+        } else {
+          delete newCart[targetKey];
+        }
+      }
+      return newCart;
+    });
+  };
+
+  const clearCart = () => {
+    setCart({});
+    localStorage.removeItem(`cart_${shopId}`);
+  };
+
+  const getCartTotal = useCallback(() => {
+    let total = 0;
+    Object.keys(cart).forEach(cartKey => {
+      const cartItem = cart[cartKey];
+      const item = items.find(i => i.id === cartItem.itemId);
+      if (item) {
+        const singleTotal = cartItem.unitTotal || parseFloat(item.price);
+        total += singleTotal * cartItem.quantity;
+      }
+    });
+    return total;
+  }, [cart, items]);
+
+  const getCartItemCount = useCallback(() => Object.values(cart).reduce((sum, entry) => sum + (entry.quantity || 0), 0), [cart]);
+
+  const placeOrder = async (paymentMethod = 'Pay After Meal', customTableNumber = '') => {
+    if (Object.keys(cart).length === 0) {
+      throw new Error("Your cart is empty. Please add items first.");
+    }
+    
+    const lastOrder = localStorage.getItem('last_order_placed');
+    if (lastOrder && getNow() - parseInt(lastOrder, 10) < 5000) {
+      throw new Error("Please wait a few seconds before placing another order.");
+    }
+
+    let finalTableNumber = String(customTableNumber || tableNumber || '').trim();
+    if (finalTableNumber === 'Unknown' || !finalTableNumber) {
+      throw new Error("Please enter your table number to place the order.");
+    }
+
+    setIsPlacingOrder(true);
+    
+    try {
+      // Convert cart to array format for secure RPC
+      const cartItemsArr = [];
+      const customizationNotes = [];
+
+      Object.keys(cart).forEach(cartKey => {
+        const cartItem = cart[cartKey];
+        const mainItem = items.find(i => i.id === cartItem.itemId);
+        if (!mainItem) return;
+
+        let customPrice = 0;
+        if (cartItem.customizations && cartItem.customizations.length > 0) {
+          cartItem.customizations.forEach(c => {
+            if (c.priceValue) customPrice += parseFloat(c.priceValue);
+          });
+        }
+
+        cartItemsArr.push({
+          item_id: cartItem.itemId,
+          quantity: cartItem.quantity,
+          customizations_price: customPrice,
+          customizations: cartItem.customizations || []
+        });
+      });
+
+      if (cartItemsArr.length === 0) {
+        throw new Error("No valid items found in cart. Please go back and add items.");
+      }
+
+      let finalNotes = orderNotes;
+
+      // Try RPC with payment_method first, then fall back to old signature on any error
+      let orderData, orderError;
+      const basePayload = {
+        p_shop_id: shop.id,
+        p_table_number: finalTableNumber,
+        p_table_id: tableId,
+        p_notes: finalNotes,
+        p_cart_items: cartItemsArr
+      };
+
+      // Attempt 1: with p_payment_method
+      const result = await supabase.rpc('place_secure_order', {
+        ...basePayload,
+        p_payment_method: paymentMethod
+      });
+      orderData = result.data;
+      orderError = result.error;
+
+      // Attempt 2: if first call failed, retry without p_payment_method (old DB schema)
+      if (orderError) {
+        console.warn('RPC attempt 1 failed:', orderError.message, '- retrying without p_payment_method');
+        const fallback = await supabase.rpc('place_secure_order', basePayload);
+        orderData = fallback.data;
+        orderError = fallback.error;
+      }
+
+      if (orderError) {
+        console.error('Order RPC error:', orderError);
+        throw new Error(`Order failed: ${orderError.message || 'Unknown error'}. Please try again.`);
+      }
+
+      if (!orderData) {
+        throw new Error("Order returned empty response. Please try again.");
+      }
+
+      // Handle unavailable items response from backend
+      if (orderData.error && orderData.error_type === 'items_unavailable') {
+        setUnavailableItems(orderData.unavailable_items || []);
+        const { data: freshItems } = await supabase
+          .from('items')
+          .select('*, categories!inner(shop_id)')
+          .eq('categories.shop_id', shop.id);
+        if (freshItems) setItems(freshItems);
+        throw new Error('Some items are no longer available. Please review your cart.');
+      }
+
+      localStorage.setItem('last_order_placed', getNow().toString());
+      localStorage.setItem(`last_order_id_${shop.id}`, orderData.id);
+
+      // Fetch the new order details using secure RPC
+      const { data: completeOrder } = await supabase.rpc('get_order_details', { p_order_id: orderData.id });
+
+      setActiveOrder(completeOrder || orderData);
+      setActiveTab('track');
+      setCart({});
+      localStorage.removeItem(`cart_${effectiveShopId}`);
+      setIsCartOpen(false);
+      setIsCheckoutOpen(false);
+    } catch (err) {
+      console.error('Unexpected error placing order:', err);
+      // Re-throw so CheckoutView can catch and display the error inline
+      throw err;
+    } finally {
+      setIsPlacingOrder(false);
+    }
+  };
+
+  const callWaiter = async () => {
+    const lastCall = localStorage.getItem('last_waiter_call');
+    if (lastCall && getNow() - parseInt(lastCall, 10) < 30000) {
+      alert("You already called the waiter recently. Please wait a moment.");
+      return;
+    }
+
+    let tNum = tableNumber;
+    if (tNum === 'Unknown') {
+      const manualT = prompt("Please enter your table number:");
+      if (!manualT || !manualT.trim()) return;
+      tNum = manualT.trim();
+    }
+
+    setIsCallingWaiter(true);
+    const { error } = await supabase.from('notifications').insert([
+      { 
+        shop_id: shop.id, 
+        type: 'waiter', 
+        title: 'Waiter Request', 
+        message: `Table ${tNum} requested a waiter.` 
+      }
+    ]);
+    setIsCallingWaiter(false);
+
+    if (!error) {
+      localStorage.setItem('last_waiter_call', getNow().toString());
+      setShowWaiterToast(true);
+      setTimeout(() => setShowWaiterToast(false), 4000);
+    } else {
+      alert("Failed to call waiter. Please try again.");
+    }
+  };
+
+  const handleOrderHistoryClick = () => {
+    const lastOrderId = localStorage.getItem(`last_order_id_${shop?.id}`);
+    if (lastOrderId) {
+      window.location.href = `/receipt/${lastOrderId}`;
+    } else {
+      alert("No recent order history found on this device.");
+    }
+  };
+
+  const submitFeedback = async (e) => {
+    e.preventDefault();
+    if (!feedbackMessage.trim()) return;
+    setIsSubmitting(true);
+    const { error } = await supabase.from('feedback').insert([
+      { shop_id: shop.id, rating: feedbackRating, message: feedbackMessage, table_number: tableNumber }
+    ]);
+    setIsSubmitting(false);
+    if (!error) {
+      setFeedbackSuccess(true);
+      setTimeout(() => {
+        setIsFeedbackOpen(false);
+        setFeedbackSuccess(false);
+        setFeedbackMessage('');
+        setFeedbackRating(5);
+      }, 2500);
+    } else {
+      alert("Error submitting feedback. Please try again.");
+    }
+  };
+
+  if (loading) {
+    return (
+      <div style={{ minHeight: '100vh', display: 'flex', justifyContent: 'center', alignItems: 'center', backgroundColor: isDarkMode ? '#0f172a' : '#fdfbf7' }}>
+        <div className="spinner"></div>
+      </div>
+    );
+  }
+
+  if (isTableDeactivated) {
+    return (
+      <div style={{ minHeight: '100vh', display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center', backgroundColor: isDarkMode ? '#0f172a' : '#fdfbf7', padding: '2rem', textAlign: 'center', color: isDarkMode ? '#f8fafc' : '#1a1a1a' }}>
+        <div style={{ width: '80px', height: '80px', borderRadius: '50%', backgroundColor: 'rgba(239, 68, 68, 0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: '1.5rem' }}>
+          <span style={{ fontSize: '2.5rem' }}>🚫</span>
+        </div>
+        <h1 style={{ marginBottom: '1rem', fontSize: '1.8rem', fontWeight: '800' }}>Table Not Available</h1>
+        <p style={{ color: isDarkMode ? '#94a3b8' : '#6b7280', fontSize: '1.1rem' }}>This table QR code has been deactivated by the restaurant.</p>
+      </div>
+    );
+  }
+
+  if (!shop) {
+    return (
+      <div style={{ minHeight: '100vh', display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center', backgroundColor: isDarkMode ? '#0f172a' : '#fdfbf7', color: isDarkMode ? '#f8fafc' : '#1a1a1a', padding: '2rem', textAlign: 'center' }}>
+        <div style={{ width: '70px', height: '70px', borderRadius: '50%', backgroundColor: 'rgba(239, 68, 68, 0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: '1.25rem' }}>
+          <AlertTriangle size={36} color="#ef4444" />
+        </div>
+        <h2 style={{ fontSize: '1.5rem', fontWeight: '800', marginBottom: '0.75rem' }}>Menu Unavailable</h2>
+        <p style={{ color: isDarkMode ? '#94a3b8' : '#64748b', maxWidth: '400px', fontSize: '0.95rem', lineHeight: '1.5', marginBottom: '1.5rem' }}>
+          {errorDiagnostics || 'Menu unavailable or invalid link.'}
+        </p>
+        <button 
+          onClick={() => window.location.reload()} 
+          style={{ padding: '0.75rem 1.75rem', backgroundColor: 'var(--color-primary, #ff6d00)', color: '#fff', border: 'none', borderRadius: '30px', fontWeight: '700', cursor: 'pointer', fontSize: '0.9rem' }}
+        >
+          Retry Loading
+        </button>
+      </div>
+    );
+  }
+
+  if (isCheckoutOpen) {
+    return (
+      <CheckoutView
+        shop={shop}
+        tableNumber={tableNumber}
+        setTableNumber={setTableNumber}
+        cart={cart}
+        items={items}
+        getCartTotal={getCartTotal}
+        getCartItemCount={getCartItemCount}
+        placeOrder={placeOrder}
+        isPlacingOrder={isPlacingOrder}
+        onBack={() => setIsCheckoutOpen(false)}
+        isDarkMode={isDarkMode}
+      />
+    );
+  }
+
+  return (
+    <div className={`customer-page-wrapper ${isDarkMode ? 'customer-dark-mode' : ''}`} style={{ paddingBottom: '90px', transition: 'background-color 0.5s ease, color 0.5s ease' }}>
+      
+      {/* Theme Applying Animation Overlay */}
+      <div className={`theme-applying-overlay ${isAnimatingTheme ? 'active' : ''}`}>
+        <div className="theme-pulse">
+          {isDarkMode ? '🌙' : '☀️'}
+        </div>
+        <p style={{ marginTop: '1rem', fontWeight: 'bold', fontSize: '1.2rem', color: '#ffffff' }}>
+          Applying {isDarkMode ? 'Dark' : 'Light'} Theme...
+        </p>
+      </div>
+      
+      <MenuHeader 
+        shop={shop} 
+        tableNumber={tableNumber}
+        onOrderHistoryClick={handleOrderHistoryClick}
+        isDarkMode={isDarkMode} 
+        lang={lang} 
+        setLang={setLang} 
+        t={t} 
+      />
+
+      {activeTab === 'menu' ? (
+        <MenuGrid 
+          categories={categories}
+          items={items}
+          activeCategoryId={activeCategoryId}
+          setActiveCategoryId={setActiveCategoryId}
+          searchQuery={searchQuery}
+          setSearchQuery={setSearchQuery}
+          addToCart={addToCart}
+          removeFromCart={removeFromCart}
+          cart={cart}
+          isDarkMode={isDarkMode}
+          t={t}
+          getIcon={getIcon}
+          onItemClick={setActiveItemForDetail}
+        />
+      ) : activeOrder ? (
+        <ActiveOrderTracker 
+          activeOrder={activeOrder} 
+          setActiveOrder={setActiveOrder} 
+          isDarkMode={isDarkMode} 
+          embedded={true}
+        />
+      ) : (
+        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '5rem 2rem', textAlign: 'center', color: 'var(--text-primary)' }}>
+          <div style={{ width: '80px', height: '80px', borderRadius: '50%', backgroundColor: 'var(--color-accent-light)', display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: '1.5rem' }}>
+            <MapPin size={36} color="var(--color-accent)" />
+          </div>
+          <h2 style={{ fontSize: '1.5rem', fontWeight: '800', marginBottom: '0.75rem' }}>No Active Orders</h2>
+          <p style={{ color: 'var(--text-secondary)', maxWidth: '320px', fontSize: '0.92rem', lineHeight: '1.5', marginBottom: '1.5rem' }}>
+            Place an order from the menu to track its status live!
+          </p>
+          <button 
+            onClick={() => setActiveTab('menu')} 
+            style={{ padding: '0.75rem 2rem', backgroundColor: 'var(--color-accent)', color: '#fff', border: 'none', borderRadius: '30px', fontWeight: '700', cursor: 'pointer', fontSize: '0.9rem' }}
+          >
+            Browse Menu
+          </button>
+        </div>
+      )}
+
+      <Cart 
+        cart={cart}
+        items={items}
+        addToCart={addToCart}
+        removeFromCart={removeFromCart}
+        clearCart={clearCart}
+        getCartTotal={getCartTotal}
+        getCartItemCount={getCartItemCount}
+        isCartOpen={isCartOpen}
+        setIsCartOpen={setIsCartOpen}
+        onProceedToCheckout={() => {
+          setIsCartOpen(false);
+          setIsCheckoutOpen(true);
+        }}
+        orderNotes={orderNotes}
+        setOrderNotes={setOrderNotes}
+        tableNumber={tableNumber}
+        manualTableNumber={manualTableNumber}
+        setManualTableNumber={setManualTableNumber}
+        isDarkMode={isDarkMode}
+        t={t}
+      />
+
+      {/* Floating Buttons */}
+      <div 
+        className="customer-fab-container" 
+        style={{ bottom: getCartItemCount() > 0 ? '92px' : '1.5rem' }}
+      >
+        <button 
+          id="call-waiter-btn"
+          className="customer-fab"
+          aria-label="Call waiter"
+          onClick={callWaiter}
+          disabled={isCallingWaiter}
+          style={{ opacity: isCallingWaiter ? 0.6 : 1 }}
+        >
+          <Bell size={24} />
+        </button>
+
+        <button 
+          id="open-feedback-btn"
+          className="customer-fab"
+          aria-label="Leave feedback"
+          onClick={() => setIsFeedbackOpen(true)}
+        >
+          <MessageSquare size={24} />
+        </button>
+      </div>
+
+      {/* Feedback Modal */}
+      {isFeedbackOpen && (
+        <div className="customer-modal-backdrop">
+          <div className="customer-modal">
+            <div className="customer-modal-header">
+              <h3 style={{ margin: 0, fontWeight: '800', color: 'var(--text-primary)' }}>{t.leaveFeedback}</h3>
+              <button 
+                id="close-feedback-btn"
+                aria-label="Close feedback"
+                onClick={() => setIsFeedbackOpen(false)} 
+                style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-secondary)' }}
+              >
+                <X size={24} />
+              </button>
+            </div>
+            <div style={{ padding: '1.5rem 1.75rem' }}>
+              {feedbackSuccess ? (
+                <div style={{ textAlign: 'center', padding: '2rem 0' }}>
+                  <CheckCircle size={48} color="#10b981" style={{ margin: '0 auto 1rem auto' }} />
+                  <h4 style={{ margin: 0, fontSize: '1.125rem', fontWeight: '700', color: 'var(--text-primary)' }}>{t.thankYou}</h4>
+                  <p style={{ margin: '0.5rem 0 0 0', color: 'var(--text-secondary)', fontSize: '0.875rem' }}>{t.feedbackSent}</p>
+                </div>
+              ) : (
+                <form onSubmit={submitFeedback}>
+                  <div style={{ marginBottom: '1.5rem', textAlign: 'center' }}>
+                    <p style={{ margin: '0 0 0.75rem 0', fontSize: '0.9rem', fontWeight: '700', color: 'var(--text-secondary)' }}>{t.howWasExperience}</p>
+                    <div style={{ display: 'flex', justifyContent: 'center', gap: '0.5rem' }}>
+                      {[1, 2, 3, 4, 5].map(star => (
+                        <button 
+                          key={star} 
+                          id={`star-rating-${star}`}
+                          aria-label={`Rate ${star} star${star > 1 ? 's' : ''}`}
+                          type="button" 
+                          onClick={() => setFeedbackRating(star)} 
+                          style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '0.25rem', transition: 'transform 0.2s' }}
+                          onMouseEnter={(e) => e.currentTarget.style.transform = 'scale(1.15)'}
+                          onMouseLeave={(e) => e.currentTarget.style.transform = 'scale(1)'}
+                        >
+                          <Star size={32} fill={star <= feedbackRating ? "var(--color-accent)" : "transparent"} color={star <= feedbackRating ? "var(--color-accent)" : "var(--text-muted)"} />
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                  <div style={{ marginBottom: '1.5rem' }}>
+                    <label htmlFor="feedback-comments" style={{ display: 'block', margin: '0 0 0.5rem 0', fontSize: '0.85rem', fontWeight: '700', color: 'var(--text-secondary)' }}>{t.anyComments}</label>
+                    <textarea 
+                      id="feedback-comments"
+                      value={feedbackMessage} 
+                      onChange={e => setFeedbackMessage(e.target.value)} 
+                      placeholder="Your review helps us improve..." 
+                      className="customer-textarea"
+                      style={{ minHeight: '110px', resize: 'vertical' }}
+                    />
+                  </div>
+                  <button 
+                    id="submit-feedback-btn"
+                    type="submit" 
+                    disabled={isSubmitting} 
+                    className="customer-add-btn"
+                    style={{ width: '100%', padding: '1.1rem', borderRadius: '30px', fontSize: '0.95rem' }}
+                  >
+                    {isSubmitting ? t.sending : t.submitFeedback}
+                  </button>
+                </form>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Unavailable Items Modal */}
+      {unavailableItems.length > 0 && (
+        <div className="customer-modal-backdrop">
+          <div className="customer-modal">
+            <div className="customer-modal-header">
+              <h3 style={{ margin: 0, fontWeight: '800', color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <AlertTriangle size={20} color="#eab308" />
+                Items Unavailable
+              </h3>
+              <button 
+                aria-label="Close unavailability alert"
+                onClick={() => setUnavailableItems([])} 
+                style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-secondary)' }}
+              >
+                <X size={22} />
+              </button>
+            </div>
+            <div style={{ padding: '1.5rem 1.75rem' }}>
+              <div style={{ 
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                width: '72px', height: '72px', borderRadius: '50%',
+                backgroundColor: 'rgba(234, 179, 8, 0.1)',
+                margin: '0 auto 1.25rem auto',
+                border: '1px solid rgba(234, 179, 8, 0.15)'
+              }}>
+                <span style={{ fontSize: '2rem' }}>😔</span>
+              </div>
+              <p style={{ textAlign: 'center', fontSize: '0.92rem', color: 'var(--text-secondary)', margin: '0 0 1.25rem 0', lineHeight: '1.55' }}>
+                Some items in your cart are no longer available.
+              </p>
+              <div style={{
+                backgroundColor: 'rgba(234, 179, 8, 0.06)',
+                border: '1px solid rgba(234, 179, 8, 0.12)',
+                borderRadius: '14px',
+                padding: '1rem 1.25rem',
+                marginBottom: '1.5rem'
+              }}>
+                <p style={{ margin: '0 0 0.5rem 0', fontSize: '0.78rem', fontWeight: '700', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Unavailable:</p>
+                {unavailableItems.map((item, idx) => (
+                  <div key={idx} style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '6px 0', borderTop: idx > 0 ? '1px solid rgba(234, 179, 8, 0.08)' : 'none' }}>
+                    <span style={{ color: '#eab308', fontSize: '0.8rem' }}>•</span>
+                    <span style={{ fontWeight: '700', fontSize: '0.9rem', color: 'var(--text-primary)' }}>{item.name}</span>
+                  </div>
+                ))}
+              </div>
+              <p style={{ textAlign: 'center', fontSize: '0.82rem', color: 'var(--text-secondary)', margin: '0 0 1.5rem 0' }}>
+                Please remove {unavailableItems.length === 1 ? 'this item' : 'these items'} or choose alternatives before placing your order.
+              </p>
+              <div style={{ display: 'flex', gap: '0.75rem' }}>
+                <button
+                  onClick={() => {
+                    // Auto-remove all unavailable items from cart
+                    setCart(prev => {
+                      const newCart = { ...prev };
+                      unavailableItems.forEach(item => delete newCart[item.item_id]);
+                      return newCart;
+                    });
+                    setUnavailableItems([]);
+                  }}
+                  style={{
+                    flex: 1,
+                    padding: '0.85rem',
+                    borderRadius: '14px',
+                    border: '1px solid var(--pill-border)',
+                    backgroundColor: 'transparent',
+                    color: 'var(--text-primary)',
+                    fontWeight: '700',
+                    fontSize: '0.88rem',
+                    cursor: 'pointer',
+                    fontFamily: 'var(--font-body)',
+                    transition: 'all 0.2s'
+                  }}
+                >
+                  Remove Items
+                </button>
+                <button
+                  onClick={() => {
+                    setUnavailableItems([]);
+                    setIsCartOpen(false);
+                  }}
+                  style={{
+                    flex: 1,
+                    padding: '0.85rem',
+                    borderRadius: '14px',
+                    border: 'none',
+                    backgroundColor: 'var(--color-accent)',
+                    color: 'white',
+                    fontWeight: '700',
+                    fontSize: '0.88rem',
+                    cursor: 'pointer',
+                    fontFamily: 'var(--font-body)',
+                    boxShadow: '0 4px 12px rgba(var(--color-accent-rgb), 0.25)',
+                    transition: 'all 0.2s'
+                  }}
+                >
+                  Browse Menu
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Item Detail Modal */}
+      <ItemDetailModal
+        item={activeItemForDetail}
+        isOpen={!!activeItemForDetail}
+        onClose={() => setActiveItemForDetail(null)}
+        onAdd={addToCart}
+      />
+
+      {/* Waiter Toast */}
+      {showWaiterToast && (
+        <div style={{ position: 'fixed', top: '24px', left: '50%', transform: 'translateX(-50%)', backgroundColor: '#3b82f6', color: 'white', padding: '16px 24px', borderRadius: '12px', display: 'flex', alignItems: 'center', gap: '12px', boxShadow: '0 10px 25px rgba(59, 130, 246, 0.4)', zIndex: 200, animation: 'slide-down 0.3s ease-out', minWidth: '300px', justifyContent: 'center' }}>
+          <div style={{ background: 'rgba(255,255,255,0.2)', padding: '8px', borderRadius: '50%', display: 'flex' }}>
+            <Bell size={24} />
+          </div>
+          <div style={{ textAlign: 'left' }}>
+            <p style={{ margin: 0, fontWeight: 'bold', fontSize: '1.1rem' }}>{t.waiterCalled}</p>
+            <p style={{ margin: 0, fontSize: '0.85rem', opacity: 0.9 }}>{t.waiterComing}</p>
+          </div>
+        </div>
+      )}
+
+      {/* Redesigned Floating Bottom Navigation Bar */}
+      <nav className="customer-bottom-nav-bar">
+        <button 
+          className={`customer-bottom-nav-item ${activeTab === 'menu' ? 'active' : ''}`}
+          onClick={() => setActiveTab('menu')}
+        >
+          <BookOpen size={20} />
+          <span>Menu</span>
+        </button>
+        
+        <button 
+          className="customer-bottom-nav-item"
+          onClick={() => setIsCartOpen(true)}
+        >
+          <ShoppingBag size={20} />
+          <span>Cart</span>
+          {getCartItemCount() > 0 && (
+            <span className="customer-bottom-nav-badge">
+              {getCartItemCount()}
+            </span>
+          )}
+        </button>
+        
+        <button 
+          className={`customer-bottom-nav-item ${activeTab === 'track' ? 'active' : ''}`}
+          onClick={() => setActiveTab('track')}
+        >
+          <MapPin size={20} />
+          <span>Track Order</span>
+        </button>
+      </nav>
+
+      {/* Hidden Receipt for Automatic Download */}
+      {activeOrder && (
+        <div style={{ position: 'absolute', top: '-9999px', left: '-9999px' }}>
+          <div ref={hiddenReceiptRef} style={{ padding: '24px', width: '320px', fontFamily: 'sans-serif', color: '#000', backgroundColor: '#faf8f5' }}>
+            <h2 style={{ textAlign: 'center', margin: '0 0 8px 0' }}>{shop?.name}</h2>
+            <p style={{ textAlign: 'center', fontSize: '12px', color: '#666', margin: '0 0 24px 0' }}>Table {tableNumber}</p>
+            <div style={{ borderBottom: '1px dashed #ccc', marginBottom: '16px' }}></div>
+            <p style={{ fontWeight: 'bold', margin: '0 0 4px 0' }}>Order #{activeOrder.order_number}</p>
+            <p style={{ fontSize: '12px', color: '#666', margin: '0 0 16px 0' }}>{new Date(activeOrder.created_at).toLocaleString()}</p>
+            {activeOrder.order_items?.map((item, idx) => (
+              <div key={idx} style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px', fontSize: '14px' }}>
+                <span>{item.quantity}x {item.item_name}</span>
+                <span>₹{(item.price_at_time * item.quantity).toFixed(2)}</span>
+              </div>
+            ))}
+            <div style={{ borderBottom: '1px dashed #ccc', margin: '16px 0' }}></div>
+            <div style={{ display: 'flex', justifyContent: 'space-between', fontWeight: 'bold', fontSize: '16px', marginBottom: '8px' }}>
+              <span>Total</span>
+              <span>₹{activeOrder.total_amount?.toFixed(2)}</span>
+            </div>
+            <div style={{ borderBottom: '1px dashed #ccc', margin: '16px 0' }}></div>
+            <p style={{ textAlign: 'center', marginTop: '24px', fontSize: '12px', color: '#666', margin: '0' }}>Thank you for visiting!</p>
+            <p style={{ textAlign: 'center', fontSize: '10px', color: '#999', margin: '8px 0 0 0' }}>Powered by QConnect</p>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+};
+
+export default CustomerMenu;
