@@ -4,6 +4,7 @@ import { supabase } from '../lib/supabase';
 import { useLanguage } from '../contexts/LanguageContext';
 import { Bell, MessageSquare, X, CheckCircle, Star, AlertTriangle, BookOpen, ShoppingBag, MapPin } from 'lucide-react';
 import '../customer-menu.css';
+import html2canvas from 'html2canvas';
 
 import MenuHeader from '../components/Customer/MenuHeader';
 import MenuGrid from '../components/Customer/MenuGrid';
@@ -114,6 +115,40 @@ const CustomerMenu = () => {
   const [activeOrder, setActiveOrder] = useState(null);
   const [isTableDeactivated, setIsTableDeactivated] = useState(false);
 
+  const hiddenReceiptRef = useRef(null);
+
+  // Table Realtime Subscription for Receipt Download
+  useEffect(() => {
+    if (!tableId || !activeOrder) return;
+    const tableChannel = supabase.channel(`customer-table-${tableId}`)
+      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'shop_tables', filter: `id=eq.${tableId}` }, async (payload) => {
+        if (payload.new.current_status === 'available' && hiddenReceiptRef.current) {
+          try {
+            await new Promise(r => setTimeout(r, 300));
+            const canvas = await html2canvas(hiddenReceiptRef.current, {
+              scale: 2,
+              useCORS: true,
+              backgroundColor: '#faf8f5'
+            });
+            const dataUrl = canvas.toDataURL('image/png');
+            const link = document.createElement('a');
+            link.href = dataUrl;
+            link.download = `receipt-${activeOrder.order_number}.png`;
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+          } catch (err) {
+            console.error('Error generating receipt on customer side:', err);
+          }
+        }
+      })
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(tableChannel);
+    };
+  }, [tableId, activeOrder]);
+
   // Waiter & Feedback state
   const [isCallingWaiter, setIsCallingWaiter] = useState(false);
   const [showWaiterToast, setShowWaiterToast] = useState(false);
@@ -181,6 +216,9 @@ const CustomerMenu = () => {
             currentShop = tableData.shops;
             setTableNumber(String(tableData.table_number));
             setTableId(tableData.id);
+            if (tableData.current_status === 'available') {
+              await supabase.from('shop_tables').update({ current_status: 'scanning' }).eq('id', tableData.id);
+            }
           } else {
             // 2. If not a table token, try to look up as a shop_id directly
             const { data: shopData, error: shopErr } = await supabase
@@ -239,6 +277,9 @@ const CustomerMenu = () => {
                   return;
                 }
                 setTableId(maybeTable.id);
+                if (maybeTable.current_status === 'available') {
+                  await supabase.from('shop_tables').update({ current_status: 'scanning' }).eq('id', maybeTable.id);
+                }
               }
             }
           }
@@ -1003,6 +1044,32 @@ const CustomerMenu = () => {
         </button>
       </nav>
 
+      {/* Hidden Receipt for Automatic Download */}
+      {activeOrder && (
+        <div style={{ position: 'absolute', top: '-9999px', left: '-9999px' }}>
+          <div ref={hiddenReceiptRef} style={{ padding: '24px', width: '320px', fontFamily: 'sans-serif', color: '#000', backgroundColor: '#faf8f5' }}>
+            <h2 style={{ textAlign: 'center', margin: '0 0 8px 0' }}>{shop?.name}</h2>
+            <p style={{ textAlign: 'center', fontSize: '12px', color: '#666', margin: '0 0 24px 0' }}>Table {tableNumber}</p>
+            <div style={{ borderBottom: '1px dashed #ccc', marginBottom: '16px' }}></div>
+            <p style={{ fontWeight: 'bold', margin: '0 0 4px 0' }}>Order #{activeOrder.order_number}</p>
+            <p style={{ fontSize: '12px', color: '#666', margin: '0 0 16px 0' }}>{new Date(activeOrder.created_at).toLocaleString()}</p>
+            {activeOrder.order_items?.map((item, idx) => (
+              <div key={idx} style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px', fontSize: '14px' }}>
+                <span>{item.quantity}x {item.item_name}</span>
+                <span>₹{(item.price_at_time * item.quantity).toFixed(2)}</span>
+              </div>
+            ))}
+            <div style={{ borderBottom: '1px dashed #ccc', margin: '16px 0' }}></div>
+            <div style={{ display: 'flex', justifyContent: 'space-between', fontWeight: 'bold', fontSize: '16px', marginBottom: '8px' }}>
+              <span>Total</span>
+              <span>₹{activeOrder.total_amount?.toFixed(2)}</span>
+            </div>
+            <div style={{ borderBottom: '1px dashed #ccc', margin: '16px 0' }}></div>
+            <p style={{ textAlign: 'center', marginTop: '24px', fontSize: '12px', color: '#666', margin: '0' }}>Thank you for visiting!</p>
+            <p style={{ textAlign: 'center', fontSize: '10px', color: '#999', margin: '8px 0 0 0' }}>Powered by QConnect</p>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
